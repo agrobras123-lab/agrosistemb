@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Agro Bras">
+  <defs>
+    <linearGradient id="agBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3fa34d"/>
+      <stop offset="1" stop-color="#1f7a33"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#agBg)"/>
+  <path d="M256 110c-94 26-146 96-146 182 0 70 52 130 130 138 0-112 26-198 120-250-34-9-69-4-103 17 17-39 0-69-1-87z"
+        fill="#ffffff"/>
+  <path d="M196 410c43-112 95-172 172-214" fill="none" stroke="#1f7a33" stroke-width="14" stroke-linecap="round" opacity="0.55"/>
+</svg>

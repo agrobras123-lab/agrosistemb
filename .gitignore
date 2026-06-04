@@ -1,0 +1,10 @@
+# Ferramentas locais de desenvolvimento (servidor de preview, caminhos da máquina)
+.claude/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

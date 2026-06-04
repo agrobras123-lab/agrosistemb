@@ -1,0 +1,20 @@
+{
+  "name": "Agro Bras Hortifruti",
+  "short_name": "Agro Bras",
+  "description": "ERP de vendas, compras e financeiro — Agro Bras Hortifruti",
+  "lang": "pt-BR",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#1f7a33",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
