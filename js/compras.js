@@ -329,68 +329,40 @@
     btn.disabled = true;
     const db = UI().db();
     const editando = !!compra.editId;
-    let pedidoId = compra.editId;
-    let fornAnterior = null;
     try {
-      let numero = compra.editNumero, data = null;
-
-      if (editando) {
-        const { data: antes } = await db.from('pedidos_compra').select('fornecedor_id').eq('id', pedidoId).single();
-        fornAnterior = antes ? antes.fornecedor_id : null;
-        const up = await db.from('pedidos_compra')
-          .update({ vendedor_id: compra.vendedor_id, fornecedor_id: compra.fornecedor_id, observacao: compra.observacao || null })
-          .eq('id', pedidoId).select('numero, data').single();
-        if (up.error) throw up.error;
-        numero = up.data.numero; data = up.data.data;
-        const delI = await db.from('itens_compra').delete().eq('pedido_id', pedidoId);
-        if (delI.error) throw delI.error;
-        const delP = await db.from('pagamentos_compra').delete().eq('pedido_id', pedidoId);
-        if (delP.error) throw delP.error;
-      } else {
-        const ins = await db.from('pedidos_compra')
-          .insert({ vendedor_id: compra.vendedor_id, fornecedor_id: compra.fornecedor_id, observacao: compra.observacao || null })
-          .select('id, numero, data').single();
-        if (ins.error) throw ins.error;
-        pedidoId = ins.data.id; numero = ins.data.numero; data = ins.data.data;
-      }
-
-      // itens
-      const itensPayload = compra.itens.map((i) => ({
-        pedido_id: pedidoId, produto_id: i.produto_id,
-        quantidade: i.quantidade, preco_unit: i.preco_unit, valor: arred(i.quantidade * i.preco_unit)
+      const itens = compra.itens.map((i) => ({
+        produto_id: i.produto_id, quantidade: i.quantidade, preco_unit: i.preco_unit,
+        valor: arred(i.quantidade * i.preco_unit)
       }));
-      const insItens = await db.from('itens_compra').insert(itensPayload);
-      if (insItens.error) throw insItens.error;
-
-      // pagamentos
-      const pagsPayload = MOD_ORDEM
+      const pagamentos = MOD_ORDEM
         .filter((m) => (Number(compra.pagamentos[m]) || 0) > 0)
         .map((m) => ({
-          pedido_id: pedidoId, modalidade: m, valor: arred(compra.pagamentos[m]),
+          modalidade: m, valor: arred(compra.pagamentos[m]),
           vencimento: m === 'boleto' && compra.boletoVenc ? compra.boletoVenc : null
         }));
-      if (pagsPayload.length) {
-        const insPags = await db.from('pagamentos_compra').insert(pagsPayload);
-        if (insPags.error) throw insPags.error;
+
+      // Gravação ATÔMICA no servidor (transação única).
+      const { data, error } = await db.rpc('salvar_compra', {
+        p_pedido_id: compra.editId,
+        p_vendedor_id: compra.vendedor_id,
+        p_fornecedor_id: compra.fornecedor_id,
+        p_observacao: compra.observacao || null,
+        p_itens: itens,
+        p_pagamentos: pagamentos
+      });
+      if (error) throw error;
+
+      if (data.saldo != null) {
+        const ff = cache.fornecedores.find((x) => x.id === compra.fornecedor_id);
+        if (ff) ff.saldo_aberto = Number(data.saldo);
       }
-
-      // lê total (trigger) e saldo do fornecedor (só leitura)
-      const { data: ped } = await db.from('pedidos_compra').select('total, data').eq('id', pedidoId).single();
-      const atualizarCacheSaldo = async (fid) => {
-        if (!fid) return null;
-        const { data: f } = await db.from('fornecedores').select('saldo_aberto').eq('id', fid).single();
-        const ff = cache.fornecedores.find((x) => x.id === fid);
-        if (ff && f) ff.saldo_aberto = f.saldo_aberto;
-        return f ? f.saldo_aberto : null;
+      compra.resultado = {
+        numero: data.numero, total: Number(data.total), data: data.data,
+        saldo: data.saldo != null ? Number(data.saldo) : null, editado: editando
       };
-      if (fornAnterior && fornAnterior !== compra.fornecedor_id) await atualizarCacheSaldo(fornAnterior);
-      const saldo = await atualizarCacheSaldo(compra.fornecedor_id);
-
-      compra.resultado = { numero, total: ped ? ped.total : totalItens(), data: ped ? ped.data : data, saldo, editado: editando };
       compra.step = 'ok';
       pintar();
     } catch (err) {
-      if (!editando && pedidoId) { try { await db.from('pedidos_compra').delete().eq('id', pedidoId); } catch (e) {} }
       UI().erro('Não foi possível gravar a compra', err);
       btn.disabled = false;
     }

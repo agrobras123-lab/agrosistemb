@@ -90,10 +90,47 @@
         <div class="dash-atalhos">
           <a class="btn btn-primary btn-grande" href="#/vendas">+ Nova venda</a>
           <a class="btn btn-ghost btn-grande" href="#/compras">+ Nova compra</a>
+          <button id="dash-backup" class="btn btn-ghost btn-grande">⬇ Exportar backup</button>
         </div>
       </div>`;
 
     main.querySelector('#dash-refresh').onclick = () => render(main);
+    main.querySelector('#dash-backup').onclick = exportarBackup;
+  }
+
+  // ---- Backup: baixa todos os dados em um arquivo JSON ---------------
+  const TABELAS_BACKUP = [
+    'clientes', 'fornecedores', 'vendedores', 'produtos',
+    'pedidos_venda', 'itens_venda', 'pagamentos_venda',
+    'pedidos_compra', 'itens_compra', 'pagamentos_compra', 'ajustes_saldo'
+  ];
+
+  async function exportarBackup() {
+    const btn = main.querySelector('#dash-backup');
+    btn.disabled = true; btn.textContent = 'Exportando...';
+    try {
+      const db = UI().db();
+      const dump = { app: 'Agro Bras Hortifruti', exportado_em: new Date().toISOString(), tabelas: {} };
+      for (const t of TABELAS_BACKUP) {
+        const { data, error } = await db.from(t).select('*');
+        if (error) throw error;
+        dump.tabelas[t] = data || [];
+      }
+      const totalLinhas = Object.values(dump.tabelas).reduce((s, a) => s + a.length, 0);
+      const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const d = new Date();
+      const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+      a.href = url; a.download = `agrobras-backup-${stamp}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      UI().toast(`Backup gerado (${totalLinhas} registros).`);
+    } catch (err) {
+      UI().erro('Falha ao exportar backup', err);
+    } finally {
+      btn.disabled = false; btn.textContent = '⬇ Exportar backup';
+    }
   }
 
   function blocoModalidade(titulo, dados) {

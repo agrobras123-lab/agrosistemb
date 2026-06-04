@@ -331,75 +331,42 @@
     btn.disabled = true;
     const db = UI().db();
     const editando = !!venda.editId;
-    let pedidoId = venda.editId;
-    let clienteAnterior = null;
     try {
       const cliente_id = venda.cliente_id === 'AVULSO' ? null : venda.cliente_id;
-      let numero = venda.editNumero, data = null;
-
-      if (editando) {
-        // guarda cliente anterior (caso tenha trocado, p/ atualizar cache depois)
-        const { data: antes } = await db.from('pedidos_venda').select('cliente_id').eq('id', pedidoId).single();
-        clienteAnterior = antes ? antes.cliente_id : null;
-        // atualiza o pedido (numero NÃO muda)
-        const up = await db.from('pedidos_venda')
-          .update({ vendedor_id: venda.vendedor_id, cliente_id, observacao: venda.observacao || null })
-          .eq('id', pedidoId).select('numero, data').single();
-        if (up.error) throw up.error;
-        numero = up.data.numero; data = up.data.data;
-        // substitui itens e pagamentos (triggers recalculam total e saldo)
-        const delI = await db.from('itens_venda').delete().eq('pedido_id', pedidoId);
-        if (delI.error) throw delI.error;
-        const delP = await db.from('pagamentos_venda').delete().eq('pedido_id', pedidoId);
-        if (delP.error) throw delP.error;
-      } else {
-        // numero vem da sequência; lemos o retorno
-        const ins = await db.from('pedidos_venda')
-          .insert({ vendedor_id: venda.vendedor_id, cliente_id, observacao: venda.observacao || null })
-          .select('id, numero, data').single();
-        if (ins.error) throw ins.error;
-        pedidoId = ins.data.id; numero = ins.data.numero; data = ins.data.data;
-      }
-
-      // itens (valor = qtd * preco_unit)
-      const itensPayload = venda.itens.map((i) => ({
-        pedido_id: pedidoId, produto_id: i.produto_id,
-        quantidade: i.quantidade, preco_unit: i.preco_unit, valor: arred(i.quantidade * i.preco_unit)
+      const itens = venda.itens.map((i) => ({
+        produto_id: i.produto_id, quantidade: i.quantidade, preco_unit: i.preco_unit,
+        valor: arred(i.quantidade * i.preco_unit)
       }));
-      const insItens = await db.from('itens_venda').insert(itensPayload);
-      if (insItens.error) throw insItens.error;
-
-      // pagamentos (só modalidades com valor > 0)
-      const pagsPayload = MOD_ORDEM
+      const pagamentos = MOD_ORDEM
         .filter((m) => (Number(venda.pagamentos[m]) || 0) > 0)
         .map((m) => ({
-          pedido_id: pedidoId, modalidade: m, valor: arred(venda.pagamentos[m]),
+          modalidade: m, valor: arred(venda.pagamentos[m]),
           vencimento: m === 'boleto' && venda.boletoVenc ? venda.boletoVenc : null
         }));
-      if (pagsPayload.length) {
-        const insPags = await db.from('pagamentos_venda').insert(pagsPayload);
-        if (insPags.error) throw insPags.error;
+
+      // Gravação ATÔMICA no servidor (pedido + itens + pagamentos numa transação).
+      // Os triggers recalculam total e saldo; aqui só lemos o resultado.
+      const { data, error } = await db.rpc('salvar_venda', {
+        p_pedido_id: venda.editId,         // null = nova venda
+        p_vendedor_id: venda.vendedor_id,
+        p_cliente_id: cliente_id,
+        p_observacao: venda.observacao || null,
+        p_itens: itens,
+        p_pagamentos: pagamentos
+      });
+      if (error) throw error;
+
+      if (cliente_id && data.saldo != null) {
+        const cc = cache.clientes.find((x) => x.id === cliente_id);
+        if (cc) cc.saldo_devedor = Number(data.saldo);
       }
-
-      // lê total (trigger) e saldo atualizado (só leitura)
-      const { data: ped } = await db.from('pedidos_venda').select('total, data').eq('id', pedidoId).single();
-      let saldo = null;
-      const atualizarCacheSaldo = async (cid) => {
-        if (!cid) return;
-        const { data: c } = await db.from('clientes').select('saldo_devedor').eq('id', cid).single();
-        const cc = cache.clientes.find((x) => x.id === cid);
-        if (cc && c) cc.saldo_devedor = c.saldo_devedor;
-        return c ? c.saldo_devedor : null;
+      venda.resultado = {
+        numero: data.numero, total: Number(data.total), data: data.data,
+        saldo: data.saldo != null ? Number(data.saldo) : null, editado: editando
       };
-      if (clienteAnterior && clienteAnterior !== cliente_id) await atualizarCacheSaldo(clienteAnterior);
-      if (cliente_id) saldo = await atualizarCacheSaldo(cliente_id);
-
-      venda.resultado = { numero, total: ped ? ped.total : totalItens(), data: ped ? ped.data : data, saldo, editado: editando };
       venda.step = 'ok';
       pintar();
     } catch (err) {
-      // só limpa pedido órfão se foi criação nova
-      if (!editando && pedidoId) { try { await db.from('pedidos_venda').delete().eq('id', pedidoId); } catch (e) {} }
       UI().erro('Não foi possível gravar a venda', err);
       btn.disabled = false;
     }
