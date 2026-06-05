@@ -426,9 +426,12 @@ textarea { resize: vertical; }
 /* ---- Cupom térmico 80mm -------------------------------------------- */
 .cupom {
   width: 280px; margin: 0 auto; background: #fff; color: #000;
-  font-family: "Courier New", ui-monospace, monospace; font-size: 12px; line-height: 1.35;
+  font-family: "Courier New", ui-monospace, monospace; font-size: 12.5px; line-height: 1.4;
   padding: 8px 10px;
+  font-weight: 700;            /* negrito: imprime mais escuro na térmica */
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
+.cupom * { font-weight: 700; }
 .cp-head { text-align: center; }
 .cp-logo { width: 96px; height: auto; }
 .cp-loja { font-weight: 700; font-size: 13px; }
