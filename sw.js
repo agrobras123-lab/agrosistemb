@@ -6,7 +6,7 @@
 // IMPORTANTE: suba este número sempre que alterar QUALQUER arquivo do shell
 // (inclusive js/supabase.js com URL/KEY/PIN), senão o navegador continua
 // servindo a versão antiga em cache.
-const CACHE = 'agrobras-shell-v10';
+const CACHE = 'agrobras-shell-v11';
 
 const SHELL = [
   './',
@@ -25,7 +25,8 @@ const SHELL = [
   './js/relatorios.js',
   './assets/favicon.png',
   './assets/icon-192.png',
-  './assets/icon-512.png'
+  './assets/icon-512.png',
+  './assets/logo-cupom.png'
 ];
 
 self.addEventListener('install', (event) => {
