@@ -426,27 +426,28 @@ textarea { resize: vertical; }
 /* ---- Cupom térmico 80mm -------------------------------------------- */
 .cupom {
   width: 280px; margin: 0 auto; background: #fff; color: #000;
-  font-family: "Courier New", ui-monospace, monospace; font-size: 12.5px; line-height: 1.4;
+  font-family: "Courier New", ui-monospace, monospace; font-size: 14px; line-height: 1.5;
   padding: 8px 10px;
-  font-weight: 700;            /* negrito: imprime mais escuro na térmica */
+  font-weight: 700;                  /* negrito */
+  -webkit-text-stroke: 0.35px #000;  /* engrossa o traço -> imprime mais escuro */
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
-.cupom * { font-weight: 700; }
+.cupom * { font-weight: 700; -webkit-text-stroke: 0.35px #000; }
 .cp-head { text-align: center; }
-.cp-logo { width: 96px; height: auto; }
-.cp-loja { font-weight: 700; font-size: 13px; }
-.cp-info { font-size: 10.5px; }
-.cp-tipo { text-align: center; font-weight: 800; font-size: 18px; letter-spacing: 2px; margin: 8px 0; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; }
+.cp-logo { width: 124px; height: auto; }
+.cp-loja { font-weight: 800; font-size: 15px; }
+.cp-info { font-size: 12px; }
+.cp-tipo { text-align: center; font-weight: 800; font-size: 21px; letter-spacing: 2px; margin: 8px 0; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; }
 .cp-meta .cp-row { padding: 1px 0; }
 .cp-sep { border-top: 1px dashed #000; margin: 6px 0; }
 .cp-item { margin-bottom: 4px; }
 .cp-item-desc { font-weight: 700; }
 .cp-item-calc { display: flex; justify-content: space-between; gap: 8px; }
-.cp-total { font-weight: 800; font-size: 15px; margin: 4px 0; }
+.cp-total { font-weight: 800; font-size: 17px; margin: 4px 0; }
 .cp-sub { font-weight: 700; margin: 6px 0 2px; }
 .cupom .cp-aberto span:last-child { color: #000; }
-.cp-obs { font-size: 11px; }
-.cp-foot { text-align: center; margin-top: 10px; font-size: 11px; }
+.cp-obs { font-size: 12.5px; }
+.cp-foot { text-align: center; margin-top: 10px; font-size: 12.5px; }
 
 /* Pré-visualização do cupom na tela (quando exibido fora de impressão) */
 .cupom-preview { border: 1px solid var(--cinza-borda); border-radius: 8px; box-shadow: var(--sombra); }

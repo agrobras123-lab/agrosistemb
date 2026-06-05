@@ -6,7 +6,7 @@
 // IMPORTANTE: suba este número sempre que alterar QUALQUER arquivo do shell
 // (inclusive js/supabase.js com URL/KEY/PIN), senão o navegador continua
 // servindo a versão antiga em cache.
-const CACHE = 'agrobras-shell-v12';
+const CACHE = 'agrobras-shell-v13';
 
 const SHELL = [
   './',
