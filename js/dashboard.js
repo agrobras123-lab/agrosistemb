@@ -46,22 +46,33 @@
   async function render(el) {
     main = el;
     main.innerHTML = `<div class="muted" style="padding:18px">Carregando totais do dia...</div>`;
-    let v, c;
+    let v, c, saldos, ultimos;
     try {
       const hoje = intervaloHoje();
-      [v, c] = await Promise.all([
+      [v, c, saldos, ultimos] = await Promise.all([
         carregarLado('pedidos_venda', 'pagamentos_venda', hoje),
-        carregarLado('pedidos_compra', 'pagamentos_compra', hoje)
+        carregarLado('pedidos_compra', 'pagamentos_compra', hoje),
+        carregarSaldos(),
+        carregarUltimos()
       ]);
-    } catch (err) { UI().erro('Falha ao carregar o resumo do dia', err); return; }
+    } catch (err) {
+      console.error('[Agro Bras] Falha ao carregar o resumo do dia', err);
+      UI().errorCard(main, 'Não foi possível carregar o resumo do dia. Verifique a conexão e tente de novo.', () => render(main));
+      return;
+    }
 
     const saldoDia = v.total - c.total;
+    // Caixa recebido hoje = só o que entrou de fato (dinheiro+pix+cartão); boleto e parcial em aberto NÃO entram.
+    const caixaHoje = v.mods.dinheiro + v.mods.pix + v.mods.cartao;
+    const agora = new Date();
+    const atualizadoEm = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     main.innerHTML = `
       <div class="dash">
         <div class="dash-head">
           <h2>Resumo de hoje</h2>
           <div class="dash-data">${UI().dataCurta(new Date().toISOString())}
-            <button id="dash-refresh" class="btn btn-sm btn-ghost" title="Atualizar">↻</button></div>
+            <span class="dash-atualizado">· atualizado às ${atualizadoEm}</span>
+            <button id="dash-refresh" class="btn btn-sm btn-ghost" title="Atualizar" aria-label="Atualizar resumo">↻</button></div>
         </div>
 
         <div class="stat-row">
@@ -82,15 +93,38 @@
           </div>
         </div>
 
+        <div class="fin-row">
+          <div class="fin-card fin-caixa">
+            <div class="stat-rotulo">Caixa recebido hoje</div>
+            <div class="fin-valor">${UI().money(caixaHoje)}</div>
+            <div class="stat-sub">dinheiro + pix + cartão</div>
+          </div>
+          <div class="fin-card fin-receber">
+            <div class="stat-rotulo">A receber (fiado)</div>
+            <div class="fin-valor">${UI().money(saldos.aReceber)}</div>
+            <div class="stat-sub">saldo devedor de clientes</div>
+          </div>
+          <div class="fin-card fin-pagar">
+            <div class="stat-rotulo">A pagar (fornecedores)</div>
+            <div class="fin-valor">${UI().money(saldos.aPagar)}</div>
+            <div class="stat-sub">saldo em aberto</div>
+          </div>
+        </div>
+
         <div class="dash-cols">
           ${blocoModalidade('Vendas por modalidade', v)}
           ${blocoModalidade('Compras por modalidade', c)}
         </div>
 
+        ${blocoUltimos(ultimos)}
+
         <div class="dash-atalhos">
           <a class="btn btn-primary btn-grande" href="#/vendas">+ Nova venda</a>
           <a class="btn btn-ghost btn-grande" href="#/compras">+ Nova compra</a>
-          <button id="dash-backup" class="btn btn-ghost btn-grande">⬇ Exportar backup</button>
+        </div>
+
+        <div class="dash-foot">
+          <button id="dash-backup" class="dash-foot-link">⬇ Exportar backup (.json)</button>
         </div>
       </div>`;
 
@@ -129,15 +163,67 @@
     } catch (err) {
       UI().erro('Falha ao exportar backup', err);
     } finally {
-      btn.disabled = false; btn.textContent = '⬇ Exportar backup';
+      btn.disabled = false; btn.textContent = '⬇ Exportar backup (.json)';
     }
+  }
+
+  // ---- A receber (clientes) / A pagar (fornecedores) ----------------
+  async function carregarSaldos() {
+    const db = UI().db();
+    const [cl, fo] = await Promise.all([
+      db.from('clientes').select('saldo_devedor'),
+      db.from('fornecedores').select('saldo_aberto')
+    ]);
+    if (cl.error) throw cl.error;
+    if (fo.error) throw fo.error;
+    const aReceber = (cl.data || []).reduce((s, x) => s + Math.max(0, Number(x.saldo_devedor) || 0), 0);
+    const aPagar   = (fo.data || []).reduce((s, x) => s + Math.max(0, Number(x.saldo_aberto) || 0), 0);
+    return { aReceber, aPagar };
+  }
+
+  // ---- Últimos pedidos (venda + compra, mais recentes) --------------
+  async function carregarUltimos() {
+    const db = UI().db();
+    const [v, c] = await Promise.all([
+      db.from('pedidos_venda').select('numero,data,total,clientes(nome)').order('data', { ascending: false }).limit(6),
+      db.from('pedidos_compra').select('numero,data,total,fornecedores(nome)').order('data', { ascending: false }).limit(6)
+    ]);
+    if (v.error) throw v.error;
+    if (c.error) throw c.error;
+    const vs = (v.data || []).map((p) => ({ tipo: 'venda',  numero: p.numero, data: p.data, total: p.total, nome: (p.clientes && p.clientes.nome) || 'Avulso' }));
+    const cs = (c.data || []).map((p) => ({ tipo: 'compra', numero: p.numero, data: p.data, total: p.total, nome: (p.fornecedores && p.fornecedores.nome) || '—' }));
+    return vs.concat(cs).sort((a, b) => new Date(b.data) - new Date(a.data)).slice(0, 6);
+  }
+
+  function blocoUltimos(lista) {
+    if (!lista || !lista.length) {
+      return `<section class="card bloco"><h3 class="bloco-titulo">Últimos pedidos</h3>
+        <div class="empty-sm">Nenhum pedido registrado ainda.</div></section>`;
+    }
+    const linhas = lista.map((p) => {
+      const href = p.tipo === 'venda' ? '#/vendas' : '#/compras';
+      const tag = p.tipo === 'venda'
+        ? '<span class="ult-tag ult-venda">Venda</span>'
+        : '<span class="ult-tag ult-compra">Compra</span>';
+      return `<a class="ult-linha" href="${href}">
+        <span class="ult-tag-wrap">${tag}<span class="ult-num">Nº ${p.numero}</span></span>
+        <span class="ult-nome">${UI().esc(p.nome)}</span>
+        <span class="ult-data muted">${UI().dataCurta(p.data)}</span>
+        <span class="ult-valor">${UI().money(p.total)}</span>
+      </a>`;
+    }).join('');
+    return `<section class="card bloco">
+      <h3 class="bloco-titulo">Últimos pedidos</h3>
+      <div class="ult-lista">${linhas}</div>
+    </section>`;
   }
 
   function blocoModalidade(titulo, dados) {
     const linhas = MOD_ORDEM.map((m) => `
       <div class="cp-row mod-linha"><span>${MOD_LABEL[m]}</span><span>${UI().money(dados.mods[m])}</span></div>`).join('');
+    const abertoZero = Math.abs(dados.aberto) < 0.005;
     const abertoLinha = `
-      <div class="cp-row mod-linha mod-aberto"><span>Parcial em aberto</span><span>${UI().money(dados.aberto)}</span></div>`;
+      <div class="cp-row mod-linha ${abertoZero ? '' : 'mod-aberto'}"><span>Parcial em aberto</span><span>${UI().money(dados.aberto)}</span></div>`;
     return `
       <section class="card bloco">
         <h3 class="bloco-titulo">${titulo}</h3>

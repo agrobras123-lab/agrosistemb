@@ -100,7 +100,11 @@
     lista.innerHTML = `<div class="muted" style="padding:18px">Carregando...</div>`;
     let q = UI().db().from(aba.tabela).select('*').order(aba.ordem, { ascending: true });
     const { data, error } = await q;
-    if (error) { UI().erro('Falha ao carregar ' + aba.label, error); lista.innerHTML = ''; return; }
+    if (error) {
+      console.error('[Agro Bras] Falha ao carregar ' + aba.label, error);
+      UI().errorCard(lista, 'Não foi possível carregar ' + aba.label.toLowerCase() + '. Tente novamente.', carregar);
+      return;
+    }
 
     const termo = estado.termo.trim().toLowerCase();
     const linhas = (data || []).filter((r) => {
@@ -133,15 +137,15 @@
 
     const linhasHTML = linhas.map((r) => {
       const cels = [];
-      if (aba.tabela === 'produtos') cels.push(`<td class="td-codigo">${r.codigo}</td>`);
-      cels.push(`<td class="td-nome">${UI().esc(r.nome)}</td>`);
-      if (aba.tabela === 'produtos') cels.push(`<td>${UI().esc(r.unidade)}</td>`);
+      if (aba.tabela === 'produtos') cels.push(`<td class="td-codigo" data-label="Código">${r.codigo}</td>`);
+      cels.push(`<td class="td-nome" data-label="Nome">${UI().esc(r.nome)}</td>`);
+      if (aba.tabela === 'produtos') cels.push(`<td data-label="Unidade">${UI().esc(r.unidade)}</td>`);
       if (aba.temSaldo) {
-        cels.push(`<td>${UI().esc(r.telefone || '—')}</td>`);
-        cels.push(`<td>${saldoHTML(r[aba.saldoCol])}</td>`);
+        cels.push(`<td data-label="Telefone">${UI().esc(r.telefone || '—')}</td>`);
+        cels.push(`<td data-label="Saldo">${saldoHTML(r[aba.saldoCol])}</td>`);
       }
       if (aba.campos.some((c) => c.key === 'ativo'))
-        cels.push(`<td>${r.ativo ? '<span class="badge badge-on">Ativo</span>' : '<span class="badge badge-off">Inativo</span>'}</td>`);
+        cels.push(`<td data-label="Status">${r.ativo ? '<span class="badge badge-on">Ativo</span>' : '<span class="badge badge-off">Inativo</span>'}</td>`);
       const acoes = [
         `<button class="btn btn-sm btn-ghost" data-edit="${r.id}">Editar</button>`,
         aba.temSaldo ? `<button class="btn btn-sm btn-ghost" data-saldo="${r.id}">Saldo</button>` : '',

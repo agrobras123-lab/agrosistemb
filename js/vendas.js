@@ -21,6 +21,15 @@
   let main = null;
   let cache = { vendedores: [], clientes: [], produtos: [] };
   let venda = null;
+  let cbCliente = null;
+  let cbProduto = null;
+
+  // Texto curto de saldo (para o subtítulo do combobox de cliente)
+  function saldoTexto(v) {
+    const n = Number(v) || 0;
+    if (Math.abs(n) < 0.005) return 'Em dia';
+    return n > 0 ? 'Deve ' + UI().money(n) : 'Crédito ' + UI().money(-n);
+  }
 
   function novaVenda() {
     venda = {
@@ -92,10 +101,7 @@
               </select>
             </label>
             <label class="campo"><span>Cliente</span>
-              <select id="sel-cliente" class="input">
-                <option value="AVULSO" ${venda.cliente_id === 'AVULSO' ? 'selected' : ''}>Avulso (sem cliente)</option>
-                ${cache.clientes.map((c) => `<option value="${c.id}" ${c.id === venda.cliente_id ? 'selected' : ''}>${UI().esc(c.nome)}</option>`).join('')}
-              </select>
+              <div id="cb-cliente"></div>
             </label>
           </div>
           ${cliente ? `<div class="saldo-inline">Saldo atual: ${saldoBadge(cliente.saldo_devedor)}</div>` : ''}
@@ -105,10 +111,7 @@
         <section class="card bloco">
           <h3 class="bloco-titulo">Itens</h3>
           <div class="item-add">
-            <select id="it-produto" class="input">
-              <option value="">Produto...</option>
-              ${cache.produtos.map((p) => `<option value="${p.id}">${UI().esc(p.nome)} (${UI().esc(p.unidade)})</option>`).join('')}
-            </select>
+            <div id="cb-produto"></div>
             <input id="it-qtd" class="input" type="number" step="0.001" min="0" inputmode="decimal" placeholder="Qtd" />
             <input id="it-preco" class="input" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Preço un." />
             <button id="it-add" class="btn btn-primary">Adicionar</button>
@@ -130,7 +133,23 @@
 
     // Eventos
     main.querySelector('#sel-vendedor').onchange = (e) => { venda.vendedor_id = e.target.value; };
-    main.querySelector('#sel-cliente').onchange = (e) => { venda.cliente_id = e.target.value; pintarMontar(); };
+
+    cbCliente = UI().combobox(main.querySelector('#cb-cliente'), {
+      placeholder: 'Buscar cliente ou Avulso...',
+      value: venda.cliente_id,
+      items: [{ id: 'AVULSO', label: 'Avulso (sem cliente)', sub: '' }].concat(
+        cache.clientes.map((c) => ({ id: c.id, label: c.nome, sub: saldoTexto(c.saldo_devedor) }))),
+      onChange: (id) => { venda.cliente_id = id; pintarMontar(); }
+    });
+
+    cbProduto = UI().combobox(main.querySelector('#cb-produto'), {
+      placeholder: 'Buscar produto...',
+      items: cache.produtos.map((p) => ({
+        id: p.id, label: p.nome, sub: p.unidade,
+        search: p.nome + ' ' + p.unidade + ' ' + (p.codigo != null ? p.codigo : '')
+      }))
+    });
+
     main.querySelector('#it-add').onclick = adicionarItem;
     main.querySelector('#it-preco').onkeydown = (e) => { if (e.key === 'Enter') adicionarItem(); };
     main.querySelector('#obs').oninput = (e) => { venda.observacao = e.target.value; };
@@ -219,7 +238,7 @@
   }
 
   function adicionarItem() {
-    const prodId = main.querySelector('#it-produto').value;
+    const prodId = cbProduto ? cbProduto.get() : '';
     const qtd = parseFloat(main.querySelector('#it-qtd').value);
     const preco = parseFloat(main.querySelector('#it-preco').value);
     if (!prodId) { UI().toast('Escolha um produto.', 'erro'); return; }
@@ -227,10 +246,10 @@
     if (!(preco >= 0)) { UI().toast('Preço inválido.', 'erro'); return; }
     const p = cache.produtos.find((x) => x.id === prodId);
     venda.itens.push({ produto_id: p.id, descricao: p.nome, unidade: p.unidade, quantidade: qtd, preco_unit: preco });
-    main.querySelector('#it-produto').value = '';
+    cbProduto.clear();
     main.querySelector('#it-qtd').value = '';
     main.querySelector('#it-preco').value = '';
-    main.querySelector('#it-produto').focus();
+    cbProduto.focus();
     renderItens();
     atualizarTotalRodape();
   }

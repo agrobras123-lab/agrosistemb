@@ -20,6 +20,15 @@
   let main = null;
   let cache = { vendedores: [], fornecedores: [], produtos: [] };
   let compra = null;
+  let cbFornecedor = null;
+  let cbProduto = null;
+
+  // Texto curto de saldo (para o subtítulo do combobox de fornecedor)
+  function saldoTexto(v) {
+    const n = Number(v) || 0;
+    if (Math.abs(n) < 0.005) return 'Em dia';
+    return n > 0 ? 'Em aberto ' + UI().money(n) : 'Crédito ' + UI().money(-n);
+  }
 
   function novaCompra() {
     compra = {
@@ -91,10 +100,7 @@
               </select>
             </label>
             <label class="campo"><span>Fornecedor *</span>
-              <select id="sel-fornecedor" class="input">
-                <option value="">Selecione...</option>
-                ${cache.fornecedores.map((f) => `<option value="${f.id}" ${f.id === compra.fornecedor_id ? 'selected' : ''}>${UI().esc(f.nome)}</option>`).join('')}
-              </select>
+              <div id="cb-fornecedor"></div>
             </label>
           </div>
           ${forn ? `<div class="saldo-inline">Saldo em aberto atual: ${saldoBadge(forn.saldo_aberto)}</div>` : ''}
@@ -104,10 +110,7 @@
         <section class="card bloco">
           <h3 class="bloco-titulo">Itens</h3>
           <div class="item-add">
-            <select id="it-produto" class="input">
-              <option value="">Produto...</option>
-              ${cache.produtos.map((p) => `<option value="${p.id}">${UI().esc(p.nome)} (${UI().esc(p.unidade)})</option>`).join('')}
-            </select>
+            <div id="cb-produto"></div>
             <input id="it-qtd" class="input" type="number" step="0.001" min="0" inputmode="decimal" placeholder="Qtd" />
             <input id="it-preco" class="input" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Preço un." />
             <button id="it-add" class="btn btn-primary">Adicionar</button>
@@ -128,7 +131,22 @@
       </div>`;
 
     main.querySelector('#sel-vendedor').onchange = (e) => { compra.vendedor_id = e.target.value; };
-    main.querySelector('#sel-fornecedor').onchange = (e) => { compra.fornecedor_id = e.target.value; pintarMontar(); };
+
+    cbFornecedor = UI().combobox(main.querySelector('#cb-fornecedor'), {
+      placeholder: 'Buscar fornecedor...',
+      value: compra.fornecedor_id,
+      items: cache.fornecedores.map((f) => ({ id: f.id, label: f.nome, sub: saldoTexto(f.saldo_aberto) })),
+      onChange: (id) => { compra.fornecedor_id = id; pintarMontar(); }
+    });
+
+    cbProduto = UI().combobox(main.querySelector('#cb-produto'), {
+      placeholder: 'Buscar produto...',
+      items: cache.produtos.map((p) => ({
+        id: p.id, label: p.nome, sub: p.unidade,
+        search: p.nome + ' ' + p.unidade + ' ' + (p.codigo != null ? p.codigo : '')
+      }))
+    });
+
     main.querySelector('#it-add').onclick = adicionarItem;
     main.querySelector('#it-preco').onkeydown = (e) => { if (e.key === 'Enter') adicionarItem(); };
     main.querySelector('#obs').oninput = (e) => { compra.observacao = e.target.value; };
@@ -218,7 +236,7 @@
   }
 
   function adicionarItem() {
-    const prodId = main.querySelector('#it-produto').value;
+    const prodId = cbProduto ? cbProduto.get() : '';
     const qtd = parseFloat(main.querySelector('#it-qtd').value);
     const preco = parseFloat(main.querySelector('#it-preco').value);
     if (!prodId) { UI().toast('Escolha um produto.', 'erro'); return; }
@@ -226,10 +244,10 @@
     if (!(preco >= 0)) { UI().toast('Preço inválido.', 'erro'); return; }
     const p = cache.produtos.find((x) => x.id === prodId);
     compra.itens.push({ produto_id: p.id, descricao: p.nome, unidade: p.unidade, quantidade: qtd, preco_unit: preco });
-    main.querySelector('#it-produto').value = '';
+    cbProduto.clear();
     main.querySelector('#it-qtd').value = '';
     main.querySelector('#it-preco').value = '';
-    main.querySelector('#it-produto').focus();
+    cbProduto.focus();
     renderItens();
     atualizarTotalRodape();
   }

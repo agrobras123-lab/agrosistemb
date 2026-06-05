@@ -42,6 +42,21 @@ button { font-family: inherit; cursor: pointer; }
 .muted { color: var(--cinza-texto); }
 .hidden { display: none !important; }
 
+/* ---- Foco visível (teclado) ---------------------------------------- */
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.nav-link:focus-visible,
+.subnav-tab:focus-visible,
+.busca-item:focus-visible,
+.dash-foot-link:focus-visible {
+  outline: 3px solid var(--verde-claro);
+  outline-offset: 2px;
+}
+.pin-pad button:focus-visible {
+  outline: 3px solid rgba(255,255,255,.85);
+  outline-offset: 2px;
+}
+
 /* ---- App shell ----------------------------------------------------- */
 .app { display: flex; min-height: 100%; }
 
@@ -114,6 +129,20 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: var(--sombra);
   padding: 22px;
 }
+/* ---- Card de erro (estado estável) --------------------------------- */
+.error-card {
+  background: var(--branco);
+  border: 1px solid #f4cbcb;
+  border-radius: var(--radius);
+  box-shadow: var(--sombra);
+  padding: 28px 22px;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  max-width: 460px; margin: 8px auto;
+}
+.error-card .error-ico { font-size: 2rem; line-height: 1; }
+.error-card .error-msg { color: var(--texto); font-weight: 600; }
+
 .placeholder h2 { margin: 6px 0 8px; }
 .placeholder-badge {
   display: inline-block;
@@ -213,6 +242,24 @@ body.locked { overflow: hidden; }
 }
 .input:focus, textarea:focus { outline: 2px solid var(--verde-bg); border-color: var(--verde-claro); }
 textarea { resize: vertical; }
+
+/* ---- Combobox (busca + autocomplete) ------------------------------- */
+.combobox { position: relative; }
+.combobox-input { width: 100%; }
+.combobox-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
+  background: #fff; border: 1px solid var(--cinza-borda); border-radius: 10px;
+  box-shadow: var(--sombra-up); max-height: 260px; overflow: auto;
+}
+.combobox-option {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; cursor: pointer; font-size: .92rem;
+}
+.combobox-option + .combobox-option { border-top: 1px solid #f0f3f0; }
+.combobox-option.active, .combobox-option:hover { background: var(--verde-bg); }
+.combobox-option .cb-label { font-weight: 600; }
+.combobox-option .cb-sub { color: var(--cinza-texto); font-size: .82rem; white-space: nowrap; }
+.combobox-empty { padding: 12px; color: var(--cinza-texto); font-size: .9rem; }
 
 /* ---- Cadastros ----------------------------------------------------- */
 .subnav {
@@ -401,6 +448,41 @@ textarea { resize: vertical; }
 .mod-total { padding-top: 10px; margin-top: 4px; border-top: 2px solid var(--cinza-borda); font-weight: 800; font-size: 1.05rem; }
 .dash-atalhos { display: flex; gap: 12px; margin-top: 18px; }
 .dash-atalhos .btn { text-decoration: none; }
+.dash-foot { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--cinza-borda); text-align: right; }
+.dash-foot-link {
+  border: none; background: transparent; color: var(--cinza-texto);
+  font-size: .82rem; font-weight: 600; padding: 6px 8px; border-radius: 8px;
+}
+.dash-foot-link:hover { background: var(--cinza-bg); color: var(--texto); }
+.dash-atualizado { font-size: .8rem; color: var(--cinza-texto); font-weight: 500; }
+
+/* Linha financeira: caixa recebido / a receber / a pagar */
+.fin-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+.fin-card {
+  background: var(--branco); border: 1px solid var(--cinza-borda);
+  border-radius: var(--radius); box-shadow: var(--sombra); padding: 16px 18px;
+}
+.fin-valor { font-size: 1.45rem; font-weight: 800; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.fin-caixa   .fin-valor { color: var(--verde); }
+.fin-receber .fin-valor { color: var(--warn); }
+.fin-pagar   .fin-valor { color: var(--blue); }
+
+/* Últimos pedidos */
+.ult-lista { display: flex; flex-direction: column; }
+.ult-linha {
+  display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px;
+  padding: 10px 4px; border-top: 1px solid #f0f3f0; text-decoration: none; color: var(--texto);
+}
+.ult-linha:first-child { border-top: none; }
+.ult-linha:hover { background: #fafbfa; }
+.ult-tag-wrap { display: flex; align-items: center; gap: 8px; }
+.ult-tag { font-size: .68rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .3px; }
+.ult-venda  { background: var(--verde-bg); color: var(--verde); }
+.ult-compra { background: #eef2f6; color: #5b6660; }
+.ult-num { font-size: .82rem; color: var(--cinza-texto); font-variant-numeric: tabular-nums; }
+.ult-nome { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ult-data { font-size: .82rem; white-space: nowrap; }
+.ult-valor { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ---- Relatórios ---------------------------------------------------- */
 .filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }
@@ -476,18 +558,43 @@ textarea { resize: vertical; }
   #menu-toggle { display: inline-flex; }
 
   .view { padding: 12px; }
-  .cad-lista { overflow-x: auto; }
-  .tabela { min-width: 540px; }
-  .td-acoes .btn { margin-left: 2px; padding: 6px 8px; }
+
+  /* Tabela de cadastros vira cards empilhados (sem rolagem horizontal) */
+  .cad-lista { overflow: visible; background: transparent; border: none; box-shadow: none; }
+  .tabela, .tabela tbody, .tabela tr, .tabela td { display: block; width: 100%; }
+  .tabela thead { display: none; }
+  .tabela tr {
+    background: var(--branco); border: 1px solid var(--cinza-borda);
+    border-radius: 12px; box-shadow: var(--sombra); margin-bottom: 10px; padding: 4px 2px;
+  }
+  .tabela tr:hover td { background: transparent; }
+  .tabela td {
+    border: none; display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; padding: 9px 14px; text-align: right;
+  }
+  .tabela td::before {
+    content: attr(data-label); font-weight: 700; font-size: .74rem;
+    text-transform: uppercase; letter-spacing: .4px; color: var(--cinza-texto);
+    text-align: left;
+  }
+  .tabela td.td-nome { font-size: 1.05rem; }
+  /* Linha de ações: botões grandes, lado a lado, sem rótulo */
+  .tabela td.td-acoes { flex-wrap: wrap; gap: 8px; padding-top: 10px; }
+  .tabela td.td-acoes::before { display: none; }
+  .tabela td.td-acoes .btn { flex: 1; margin-left: 0; min-height: 44px; padding: 10px 12px; font-size: .9rem; }
 
   .grid2, .pg-grid { grid-template-columns: 1fr; }
   .stat-row { grid-template-columns: 1fr; }
+  .fin-row { grid-template-columns: 1fr; }
   .dash-cols { grid-template-columns: 1fr; }
+  .ult-linha { grid-template-columns: auto 1fr; row-gap: 2px; }
+  .ult-data { grid-column: 1; }
+  .ult-valor { grid-column: 2; text-align: right; }
   .dash-atalhos { flex-direction: column; }
   .filtros { grid-template-columns: 1fr 1fr; }
   .resumo-acoes { margin-left: 0; }
   .item-add { grid-template-columns: 1fr 1fr; }
-  .item-add #it-produto { grid-column: 1 / -1; }
+  .item-add #cb-produto { grid-column: 1 / -1; }
   .item-add #it-add { grid-column: 1 / -1; }
   .fluxo-rodape { left: 0; }
 }
