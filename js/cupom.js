@@ -21,7 +21,7 @@
   function cabecalho() {
     return `
       <div class="cp-head">
-        <img class="cp-logo" src="./assets/logo.svg" alt="" />
+        <img class="cp-logo" src="./assets/icon-192.png" alt="" />
         <div class="cp-loja">${LOJA.nome}</div>
         <div class="cp-info">${LOJA.endereco}</div>
         <div class="cp-info">${LOJA.whats}</div>

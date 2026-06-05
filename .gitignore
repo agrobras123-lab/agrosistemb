@@ -8,3 +8,7 @@ desktop.ini
 
 # Logs
 *.log
+
+# Arquivos de referência/preview (não fazem parte do app)
+.erp-ref.html
+preview-visual.html
