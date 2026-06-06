@@ -181,39 +181,32 @@
     return { aReceber, aPagar };
   }
 
-  // ---- Últimos pedidos (venda + compra, mais recentes) --------------
+  // ---- Últimas vendas (mais recentes) -------------------------------
   async function carregarUltimos() {
     const db = UI().db();
-    const [v, c] = await Promise.all([
-      db.from('pedidos_venda').select('numero,data,total,clientes(nome)').order('data', { ascending: false }).limit(6),
-      db.from('pedidos_compra').select('numero,data,total,fornecedores(nome)').order('data', { ascending: false }).limit(6)
-    ]);
+    const v = await db.from('pedidos_venda')
+      .select('numero,data,total,clientes(nome)').order('data', { ascending: false }).limit(6);
     if (v.error) throw v.error;
-    if (c.error) throw c.error;
-    const vs = (v.data || []).map((p) => ({ tipo: 'venda',  numero: p.numero, data: p.data, total: p.total, nome: (p.clientes && p.clientes.nome) || 'Avulso' }));
-    const cs = (c.data || []).map((p) => ({ tipo: 'compra', numero: p.numero, data: p.data, total: p.total, nome: (p.fornecedores && p.fornecedores.nome) || '—' }));
-    return vs.concat(cs).sort((a, b) => new Date(b.data) - new Date(a.data)).slice(0, 6);
+    return (v.data || []).map((p) => ({
+      tipo: 'venda', numero: p.numero, data: p.data, total: p.total,
+      nome: (p.clientes && p.clientes.nome) || 'Avulso'
+    }));
   }
 
   function blocoUltimos(lista) {
     if (!lista || !lista.length) {
-      return `<section class="card bloco"><h3 class="bloco-titulo">Últimos pedidos</h3>
-        <div class="empty-sm">Nenhum pedido registrado ainda.</div></section>`;
+      return `<section class="card bloco"><h3 class="bloco-titulo">Últimas vendas</h3>
+        <div class="empty-sm">Nenhuma venda registrada ainda.</div></section>`;
     }
-    const linhas = lista.map((p) => {
-      const href = p.tipo === 'venda' ? '#/vendas' : '#/compras';
-      const tag = p.tipo === 'venda'
-        ? '<span class="ult-tag ult-venda">Venda</span>'
-        : '<span class="ult-tag ult-compra">Compra</span>';
-      return `<a class="ult-linha" href="${href}">
-        <span class="ult-tag-wrap">${tag}<span class="ult-num">Nº ${p.numero}</span></span>
+    const linhas = lista.map((p) => `
+      <a class="ult-linha" href="#/vendas">
+        <span class="ult-tag-wrap"><span class="ult-num">Nº ${p.numero}</span></span>
         <span class="ult-nome">${UI().esc(p.nome)}</span>
         <span class="ult-data muted">${UI().dataCurta(p.data)}</span>
         <span class="ult-valor">${UI().money(p.total)}</span>
-      </a>`;
-    }).join('');
+      </a>`).join('');
     return `<section class="card bloco">
-      <h3 class="bloco-titulo">Últimos pedidos</h3>
+      <h3 class="bloco-titulo">Últimas vendas</h3>
       <div class="ult-lista">${linhas}</div>
     </section>`;
   }
