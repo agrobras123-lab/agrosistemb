@@ -257,8 +257,14 @@ textarea { resize: vertical; }
 }
 .combobox-option + .combobox-option { border-top: 1px solid #f0f3f0; }
 .combobox-option.active, .combobox-option:hover { background: var(--verde-bg); }
-.combobox-option .cb-label { font-weight: 600; }
-.combobox-option .cb-sub { color: var(--cinza-texto); font-size: .82rem; white-space: nowrap; }
+.combobox-option .cb-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.combobox-option .cb-code {
+  font-variant-numeric: tabular-nums; font-size: .72rem; font-weight: 700;
+  background: var(--cinza-bg); color: var(--cinza-texto);
+  padding: 2px 7px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;
+}
+.combobox-option .cb-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combobox-option .cb-sub { color: var(--cinza-texto); font-size: .82rem; white-space: nowrap; flex-shrink: 0; }
 .combobox-empty { padding: 12px; color: var(--cinza-texto); font-size: .9rem; }
 
 /* ---- Cadastros ----------------------------------------------------- */

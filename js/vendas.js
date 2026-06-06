@@ -143,11 +143,12 @@
     });
 
     cbProduto = UI().combobox(main.querySelector('#cb-produto'), {
-      placeholder: 'Buscar produto...',
+      placeholder: 'Buscar produto por nome ou código...',
       items: cache.produtos.map((p) => ({
-        id: p.id, label: p.nome, sub: p.unidade,
-        search: p.nome + ' ' + p.unidade + ' ' + (p.codigo != null ? p.codigo : '')
-      }))
+        id: p.id, label: p.nome, sub: p.unidade, code: p.codigo
+      })),
+      // Ao escolher o produto, pula direto para a quantidade (agiliza a venda).
+      onChange: () => { const q = main.querySelector('#it-qtd'); if (q) q.focus(); }
     });
 
     main.querySelector('#it-add').onclick = adicionarItem;

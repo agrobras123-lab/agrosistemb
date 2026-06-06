@@ -59,14 +59,16 @@
   // ---- Combobox (busca + autocomplete) -------------------------------
   // Substitui <select> grande por busca por nome/código com teclado.
   // host: elemento container (será preenchido).
-  // opts: { items:[{id,label,sub?,search?}], value?, placeholder?, emptyText?, onChange?(id,item) }
+  // opts: { items:[{id,label,sub?,code?,search?}], value?, placeholder?, emptyText?, onChange?(id,item) }
+  // - code: código exibido como chip e usado para busca/atalho (Enter por código exato).
   // Retorna { get, set, clear, focus, el }.
   UI.combobox = (host, opts) => {
     const items = (opts.items || []).map((it) => ({
       id: String(it.id),
       label: it.label || '',
       sub: it.sub || '',
-      search: (it.search || (it.label + ' ' + (it.sub || ''))).toLowerCase()
+      code: it.code != null && it.code !== '' ? String(it.code) : '',
+      search: (it.search || (it.label + ' ' + (it.sub || '') + ' ' + (it.code != null ? it.code : ''))).toLowerCase()
     }));
     const byId = (id) => items.find((x) => x.id === String(id));
     let selectedId = opts.value != null && opts.value !== '' ? String(opts.value) : '';
@@ -88,7 +90,19 @@
     function compute() {
       const q = input.value.trim().toLowerCase();
       const tokens = q ? q.split(/\s+/) : [];
-      filtered = items.filter((it) => tokens.every((t) => it.search.includes(t))).slice(0, 50);
+      let res = items.filter((it) => tokens.every((t) => it.search.includes(t)));
+      if (q) {
+        // Ranqueia: código exato > código começa com > nome começa com > resto (estável).
+        const score = (it) => {
+          const code = it.code.toLowerCase();
+          if (code && code === q) return 0;
+          if (code && code.startsWith(q)) return 1;
+          if (it.label.toLowerCase().startsWith(q)) return 2;
+          return 3;
+        };
+        res = res.map((it, i) => ({ it, i })).sort((a, b) => score(a.it) - score(b.it) || a.i - b.i).map((x) => x.it);
+      }
+      filtered = res.slice(0, 50);
     }
     function renderList() {
       if (!filtered.length) {
@@ -98,7 +112,7 @@
       list.innerHTML = filtered.map((it, i) => `
         <div class="combobox-option${i === activeIdx ? ' active' : ''}" role="option"
           aria-selected="${i === activeIdx}" data-idx="${i}">
-          <span class="cb-label">${UI.esc(it.label)}</span>
+          <span class="cb-main">${it.code ? `<span class="cb-code">#${UI.esc(it.code)}</span>` : ''}<span class="cb-label">${UI.esc(it.label)}</span></span>
           ${it.sub ? `<span class="cb-sub">${UI.esc(it.sub)}</span>` : ''}
         </div>`).join('');
       list.querySelectorAll('.combobox-option').forEach((o) => {
@@ -107,13 +121,17 @@
     }
     function open() { compute(); if (activeIdx >= filtered.length) activeIdx = filtered.length - 1; renderList(); list.hidden = false; input.setAttribute('aria-expanded', 'true'); }
     function close() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); activeIdx = -1; }
-    function pick(i) {
-      const it = filtered[i];
+    function pickItem(it) {
       if (!it) return;
       selectedId = it.id;
       input.value = it.label;
       close();
       if (opts.onChange) opts.onChange(it.id, it);
+    }
+    function pick(i) { pickItem(filtered[i]); }
+    function exactCode(q) {
+      const t = q.trim().toLowerCase();
+      return t ? items.find((it) => it.code && it.code.toLowerCase() === t) : null;
     }
 
     input.addEventListener('focus', open);
@@ -126,6 +144,9 @@
       if (e.key === 'ArrowDown') { e.preventDefault(); if (list.hidden) open(); activeIdx = Math.min(activeIdx + 1, filtered.length - 1); renderList(); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); renderList(); }
       else if (e.key === 'Enter') {
+        // Código exato + Enter seleciona direto (atalho rápido / leitor de código).
+        const ex = exactCode(input.value);
+        if (ex) { e.preventDefault(); pickItem(ex); return; }
         if (!list.hidden && (activeIdx >= 0 || filtered.length === 1)) { e.preventDefault(); pick(activeIdx >= 0 ? activeIdx : 0); }
       } else if (e.key === 'Escape') { close(); }
     });
