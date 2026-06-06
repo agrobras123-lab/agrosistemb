@@ -149,6 +149,7 @@
     });
 
     main.querySelector('#it-add').onclick = adicionarItem;
+    main.querySelector('#it-qtd').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); main.querySelector('#it-preco').focus(); } };
     main.querySelector('#it-preco').onkeydown = (e) => { if (e.key === 'Enter') adicionarItem(); };
     main.querySelector('#obs').oninput = (e) => { compra.observacao = e.target.value; };
     main.querySelector('#ir-pagamento').onclick = irParaPagamento;
