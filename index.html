@@ -9,6 +9,9 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" type="image/png" href="./assets/favicon.png" />
   <link rel="apple-touch-icon" href="./assets/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body class="locked">
@@ -48,29 +51,56 @@
   <div class="app">
     <aside id="sidebar" class="sidebar">
       <div class="sidebar-brand">
-        <img src="./assets/icon-192.png" alt="" />
+        <div class="brand-logo"><img src="./assets/icon-192.png" alt="Agro Bras" /></div>
         <div>
           <div class="brand-name">Agro Bras</div>
-          <div class="brand-sub">Hortifruti</div>
+          <div class="brand-sub">Hortifruti · ERP</div>
         </div>
       </div>
+
+      <div class="nav-label">Operação</div>
       <nav class="nav">
-        <a class="nav-link" data-route="inicio"     href="#/inicio"><span class="ico">🏠</span> Início</a>
-        <a class="nav-link" data-route="vendas"     href="#/vendas"><span class="ico">🛒</span> Vendas</a>
-        <a class="nav-link" data-route="compras"    href="#/compras"><span class="ico">📦</span> Compras</a>
-        <a class="nav-link" data-route="cadastros"  href="#/cadastros"><span class="ico">📇</span> Cadastros</a>
-        <a class="nav-link" data-route="relatorios" href="#/relatorios"><span class="ico">📊</span> Relatórios</a>
+        <a class="nav-link" data-route="inicio"  href="#/inicio"><i data-lucide="layout-dashboard"></i> <span>Início</span></a>
+        <a class="nav-link" data-route="vendas"  href="#/vendas"><i data-lucide="shopping-bag"></i> <span>Vendas</span></a>
+        <a class="nav-link" data-route="compras" href="#/compras"><i data-lucide="truck"></i> <span>Compras</span></a>
       </nav>
-      <div class="sidebar-foot">Agro Bras Hortifruti</div>
+
+      <div class="nav-label">Gestão</div>
+      <nav class="nav">
+        <a class="nav-link" data-route="cadastros"  href="#/cadastros"><i data-lucide="users-round"></i> <span>Cadastros</span></a>
+        <a class="nav-link" data-route="relatorios" href="#/relatorios"><i data-lucide="bar-chart-3"></i> <span>Relatórios</span></a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <button id="sb-backup" class="backup-btn"><i data-lucide="download"></i> Exportar backup (.json)</button>
+        <div class="user">
+          <div class="user-av">AB</div>
+          <div>
+            <div class="user-name">Agro Bras</div>
+            <div class="user-role">Administrador</div>
+          </div>
+          <button id="lock-btn" class="user-lock" aria-label="Travar"><i data-lucide="shield-check"></i></button>
+        </div>
+      </div>
     </aside>
 
     <div class="content">
       <header class="topbar">
-        <button id="menu-toggle" class="icon-btn" aria-label="Menu">☰</button>
-        <span id="topbar-title">Início</span>
-        <span class="topbar-spacer"></span>
-        <button id="install-btn" class="btn btn-ghost btn-sm hidden">⤓ Instalar app</button>
-        <button id="lock-btn" class="icon-btn" aria-label="Travar">🔒</button>
+        <button id="menu-toggle" class="icon-btn" aria-label="Menu"><i data-lucide="menu"></i></button>
+        <div class="crumb">
+          <span class="crumb-path">Painel</span>
+          <h1 id="topbar-title">Início</h1>
+        </div>
+        <div class="tb-search">
+          <i data-lucide="search"></i>
+          <input type="text" placeholder="Buscar pedido, cliente ou produto…" />
+        </div>
+        <div class="top-actions">
+          <button id="install-btn" class="btn btn-ghost btn-sm hidden"><i data-lucide="download"></i> Instalar</button>
+          <button class="tb-bell" aria-label="Notificações"><i data-lucide="bell"></i><span class="tb-dot"></span></button>
+          <a href="#/compras" class="btn btn-ghost"><i data-lucide="truck"></i> Nova compra</a>
+          <a href="#/vendas" class="btn btn-primary"><i data-lucide="plus"></i> Nova venda</a>
+        </div>
       </header>
       <main id="view" class="view"></main>
     </div>
@@ -82,6 +112,8 @@
   <div id="area-impressao"></div>
 
   <!-- ===================== SCRIPTS ===================== -->
+  <!-- Ícones Lucide via CDN -->
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <!-- Cliente Supabase via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./js/supabase.js"></script>

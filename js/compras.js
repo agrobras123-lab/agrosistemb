@@ -79,8 +79,10 @@
   // ===================== PASSO 1: MONTAR =============================
   function pintarMontar() {
     const forn = fornecedorAtual();
+    const totalAPagar = cache.fornecedores.reduce((s, f) => s + Math.max(0, Number(f.saldo_aberto) || 0), 0);
     main.innerHTML = `
       <div class="fluxo">
+        ${totalAPagar > 0 ? `<div class="dk-apagar"><i data-lucide="receipt"></i><div><div class="dk-apagar-lbl">A pagar (fornecedores)</div><div class="dk-apagar-val num">${UI().money(totalAPagar)}</div></div></div>` : ''}
         <div class="fluxo-top">
           <button id="btn-buscar" class="btn btn-ghost btn-sm">🔍 Buscar / editar compra</button>
           ${compra.editId ? `<span class="edit-flag">✎ Editando compra nº ${compra.editNumero}</span>
@@ -157,6 +159,7 @@
     const cancEdit = main.querySelector('#btn-cancelar-edit');
     if (cancEdit) cancEdit.onclick = () => { novaCompra(); pintar(); };
     renderItens();
+    if (window.AGB && AGB.refreshIcons) AGB.refreshIcons();
   }
 
   // ---- Busca / edição -----------------------------------------------

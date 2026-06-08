@@ -58,7 +58,17 @@
     } else {
       placeholder(r);
     }
+    refreshIcons();
   }
+
+  // Renderiza/atualiza os ícones Lucide (shell + tela atual)
+  function refreshIcons() {
+    if (window.lucide && typeof lucide.createIcons === 'function') {
+      try { lucide.createIcons(); } catch (e) { /* silencioso */ }
+    }
+  }
+  window.AGB = window.AGB || {};
+  window.AGB.refreshIcons = refreshIcons;
 
   // Registro de telas pelos módulos. Se a rota atual for a registrada agora,
   // re-renderiza (cobre o caso do módulo carregar depois do primeiro render).
@@ -82,15 +92,23 @@
     if (window.AGB && AGB.lock) AGB.lock();
   });
 
+  // Botão de backup na sidebar (a função vive em dashboard.js)
+  const sbBackup = document.getElementById('sb-backup');
+  if (sbBackup) sbBackup.addEventListener('click', () => {
+    if (window.AGB && AGB.exportarBackup) AGB.exportarBackup(sbBackup);
+  });
+
   // ---- Eventos -------------------------------------------------------
   window.addEventListener('hashchange', render);
   window.addEventListener('agb:unlocked', () => {
     if (!location.hash) location.hash = '#/' + DEFAULT_ROUTE;
     render();
+    refreshIcons();
   });
 
   // Boot
   document.addEventListener('DOMContentLoaded', () => {
+    refreshIcons(); // ícones do shell (sidebar/topbar)
     if (!location.hash) location.hash = '#/' + DEFAULT_ROUTE;
     if (window.AGB && AGB.isUnlocked && AGB.isUnlocked()) render();
   });
