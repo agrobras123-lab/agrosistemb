@@ -24,7 +24,29 @@
     relatorios: { titulo: 'Relatórios',  etapa: 5, desc: 'Vendas, Compras, Clientes, Fornecedores e Produtos. Todos imprimíveis.' }
   };
   const DEFAULT_ROUTE = 'inicio';
+  // Rotas exclusivas do DONO (operador é barrado aqui).
+  const DONO_ROUTES = { compras: true, cadastros: true };
   const views = {};
+
+  function ehDono() { return !!(window.AGB && AGB.isDono && AGB.isDono()); }
+
+  function restricted(route) {
+    main.innerHTML = `
+      <section class="placeholder card">
+        <div class="placeholder-badge">Acesso restrito</div>
+        <h2>${route.titulo} — só o dono</h2>
+        <p>Esta área é liberada apenas com o <strong>acesso de dono</strong>.</p>
+        <p class="muted">Trave a tela e entre com o PIN de dono para acessar.</p>
+      </section>`;
+  }
+
+  // Atualiza o rótulo de papel na sidebar.
+  function aplicarPapel() {
+    const role = (window.AGB && AGB.role) ? AGB.role() : null;
+    const el = document.getElementById('user-role');
+    if (el) el.textContent = role === 'dono' ? 'Dono · acesso total'
+      : role === 'operador' ? 'Operador · venda' : '—';
+  }
 
   function placeholder(r) {
     const route = ROUTES[r];
@@ -52,6 +74,12 @@
     document.title = `Agro Bras — ${route.titulo}`;
     closeSidebar();
     main.scrollTop = 0;
+    // Guarda de permissão: operador não entra em Compras/Cadastros.
+    if (DONO_ROUTES[r] && !ehDono()) {
+      restricted(route);
+      refreshIcons();
+      return;
+    }
     if (views[r]) {
       try { views[r](main); }
       catch (e) { console.error('[Agro Bras] erro ao renderizar', r, e); placeholder(r); }
@@ -101,7 +129,8 @@
   // ---- Eventos -------------------------------------------------------
   window.addEventListener('hashchange', render);
   window.addEventListener('agb:unlocked', () => {
-    if (!location.hash) location.hash = '#/' + DEFAULT_ROUTE;
+    aplicarPapel();
+    location.hash = '#/' + DEFAULT_ROUTE; // sempre cai no Início ao entrar
     render();
     refreshIcons();
   });
@@ -110,7 +139,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     refreshIcons(); // ícones do shell (sidebar/topbar)
     if (!location.hash) location.hash = '#/' + DEFAULT_ROUTE;
-    if (window.AGB && AGB.isUnlocked && AGB.isUnlocked()) render();
+    if (window.AGB && AGB.isUnlocked && AGB.isUnlocked()) { aplicarPapel(); render(); }
   });
 
   // ---- PWA: botão instalar -------------------------------------------

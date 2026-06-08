@@ -8,6 +8,14 @@
  * ===================================================================== */
 (function () {
   const UNLOCK_KEY = 'agb_unlocked';
+  const ROLE_KEY   = 'agb_role';   // 'dono' | 'operador'
+
+  // Aplica/remove as classes de papel no <body> (o CSS esconde os botões
+  // "dono-only" quando o papel é operador).
+  function applyRole(role) {
+    document.body.classList.remove('role-dono', 'role-operador');
+    if (role) document.body.classList.add('role-' + role);
+  }
 
   const overlay = document.getElementById('pin-screen');
   const form = document.getElementById('loginForm');
@@ -39,8 +47,10 @@
     setTimeout(() => { field.classList.remove('shake'); input.select(); }, 420);
   }
 
-  function unlock() {
+  function unlock(role) {
     sessionStorage.setItem(UNLOCK_KEY, '1');
+    sessionStorage.setItem(ROLE_KEY, role);
+    applyRole(role);
     overlay.classList.add('hidden');
     document.body.classList.remove('locked');
     window.dispatchEvent(new CustomEvent('agb:unlocked'));
@@ -48,6 +58,8 @@
 
   function lock() {
     sessionStorage.removeItem(UNLOCK_KEY);
+    sessionStorage.removeItem(ROLE_KEY);
+    applyRole(null);
     input.value = '';
     input.type = 'password';
     clearHint();
@@ -79,10 +91,13 @@
     e.preventDefault();
     const val = input.value.trim();
     if (val.length === 0) { shake('Digite seu PIN para continuar'); return; }
-    if (val === AGB.config.APP_PIN) {
-      flashHint('Acesso liberado, redirecionando…', true);
+    let role = null;
+    if (val === AGB.config.APP_PIN_DONO) role = 'dono';
+    else if (val === AGB.config.APP_PIN) role = 'operador';
+    if (role) {
+      flashHint(role === 'dono' ? 'Acesso de dono liberado…' : 'Acesso liberado, redirecionando…', true);
       field.style.borderColor = '#36c878';
-      setTimeout(unlock, 550);
+      setTimeout(() => unlock(role), 550);
     } else {
       shake('PIN incorreto, tente novamente');
     }
@@ -92,10 +107,13 @@
   window.AGB = window.AGB || {};
   window.AGB.lock = lock;
   window.AGB.isUnlocked = isUnlocked;
+  window.AGB.role = () => sessionStorage.getItem(ROLE_KEY);
+  window.AGB.isDono = () => sessionStorage.getItem(ROLE_KEY) === 'dono';
 
   // Estado inicial
   icons();
   if (isUnlocked()) {
+    applyRole(sessionStorage.getItem(ROLE_KEY)); // reaplica papel ao recarregar a aba
     overlay.classList.add('hidden');
     document.body.classList.remove('locked');
   } else {

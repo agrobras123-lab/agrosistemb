@@ -293,12 +293,12 @@
           <div><div class="dk-qt">Nova venda</div><div class="dk-qd">Registrar pedido de cliente</div></div>
           <span class="dk-qchev"><i data-lucide="chevron-right"></i></span>
         </a>
-        <a class="dk-qrow" href="#/compras">
+        <a class="dk-qrow dono-only" href="#/compras">
           <div class="dk-qico" style="background:var(--info-soft);color:var(--info)"><i data-lucide="truck"></i></div>
           <div><div class="dk-qt">Nova compra</div><div class="dk-qd">Entrada de fornecedor</div></div>
           <span class="dk-qchev"><i data-lucide="chevron-right"></i></span>
         </a>
-        <a class="dk-qrow" href="#/cadastros">
+        <a class="dk-qrow dono-only" href="#/cadastros">
           <div class="dk-qico" style="background:var(--warn-soft);color:var(--warn2)"><i data-lucide="hand-coins"></i></div>
           <div><div class="dk-qt">Receber fiado</div><div class="dk-qd">Baixar saldo de cliente</div></div>
           <span class="dk-qchev"><i data-lucide="chevron-right"></i></span>

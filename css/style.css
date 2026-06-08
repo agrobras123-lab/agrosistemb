@@ -61,6 +61,8 @@ html, body {
 button { font-family: inherit; cursor: pointer; }
 .muted { color: var(--cinza-texto); }
 .hidden { display: none !important; }
+/* Papéis: esconde elementos só-do-dono quando o acesso é de operador. */
+body.role-operador .dono-only { display: none !important; }
 
 /* ---- Foco visível (teclado) ---------------------------------------- */
 .btn:focus-visible,

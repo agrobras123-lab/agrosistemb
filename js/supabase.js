@@ -10,16 +10,20 @@
 const SUPABASE_URL      = 'https://rjrfodbxcssavdzimxlr.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_RUvCTWXBMuaP54kXLqVbCQ_8Mv7wOWo';
 
-/* PIN único de 4 dígitos (trava de tela compartilhada). Troque à vontade.
- * Não é segurança real — a anon key já é pública. É só uma trava de balcão. */
-const APP_PIN = '1020';
+/* PINs de acesso (trava de balcão). NÃO é segurança real — ficam no código
+ * público; servem só pra separar o que cada um pode fazer NA TELA.
+ *   • APP_PIN      → OPERADOR (vender, cadastrar cliente na hora, relatórios)
+ *   • APP_PIN_DONO → DONO (acesso total: compras, editar, apagar, zerar saldo,
+ *                    cadastros, backup) */
+const APP_PIN      = '1020';
+const APP_PIN_DONO = '3305762';
 
 /* =====================================================================
  * Inicialização do cliente (não precisa mexer abaixo)
  * ===================================================================== */
 
 const AGB = {
-  config: { SUPABASE_URL, SUPABASE_ANON_KEY, APP_PIN },
+  config: { SUPABASE_URL, SUPABASE_ANON_KEY, APP_PIN, APP_PIN_DONO },
   client: null,
   /** true quando URL/KEY foram preenchidas (não são mais os placeholders). */
   get configurado() {

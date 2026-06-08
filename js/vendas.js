@@ -83,7 +83,7 @@
     main.innerHTML = `
       <div class="fluxo">
         <div class="fluxo-top">
-          <button id="btn-buscar" class="btn btn-ghost btn-sm">🔍 Buscar / editar venda</button>
+          ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-ghost btn-sm">🔍 Buscar / editar venda</button>` : ''}
           ${venda.editId ? `<span class="edit-flag">✎ Editando venda nº ${venda.editNumero}</span>
             <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>` : ''}
         </div>
@@ -102,6 +102,7 @@
             </label>
             <label class="campo"><span>Cliente</span>
               <div id="cb-cliente"></div>
+              <button type="button" id="btn-novo-cliente" class="btn btn-ghost btn-sm" style="margin-top:6px">+ Novo cliente</button>
             </label>
           </div>
           ${cliente ? `<div class="saldo-inline">Saldo atual: ${saldoBadge(cliente.saldo_devedor)}</div>` : ''}
@@ -156,7 +157,9 @@
     main.querySelector('#it-preco').onkeydown = (e) => { if (e.key === 'Enter') adicionarItem(); };
     main.querySelector('#obs').oninput = (e) => { venda.observacao = e.target.value; };
     main.querySelector('#ir-pagamento').onclick = irParaPagamento;
-    main.querySelector('#btn-buscar').onclick = abrirBusca;
+    const btnBuscar = main.querySelector('#btn-buscar');
+    if (btnBuscar) btnBuscar.onclick = abrirBusca;
+    main.querySelector('#btn-novo-cliente').onclick = abrirNovoCliente;
     const cancEdit = main.querySelector('#btn-cancelar-edit');
     if (cancEdit) cancEdit.onclick = () => { novaVenda(); pintar(); };
     renderItens();
@@ -237,6 +240,40 @@
       });
       pintar();
     } catch (err) { UI().erro('Não foi possível abrir o pedido', err); pintar(); }
+  }
+
+  // ---- Cadastro rápido de cliente (na hora da venda) ----------------
+  function abrirNovoCliente() {
+    const m = UI().openModal({
+      titulo: 'Novo cliente', largura: '420px',
+      corpo: `
+        <label class="campo"><span>Nome *</span><input id="nc-nome" class="input" type="text" placeholder="Nome do cliente" /></label>
+        <label class="campo"><span>Telefone</span><input id="nc-tel" class="input" type="text" placeholder="opcional" /></label>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button id="nc-cancel" class="btn btn-ghost">Cancelar</button>
+          <button id="nc-salvar" class="btn btn-primary">Salvar</button>
+        </div>`
+    });
+    const nome = m.body.querySelector('#nc-nome');
+    setTimeout(() => nome.focus(), 50);
+    m.body.querySelector('#nc-cancel').onclick = () => m.close();
+    m.body.querySelector('#nc-salvar').onclick = async () => {
+      const n = nome.value.trim();
+      if (!n) { UI().toast('Informe o nome do cliente.', 'erro'); return; }
+      const tel = m.body.querySelector('#nc-tel').value.trim();
+      const btn = m.body.querySelector('#nc-salvar'); btn.disabled = true;
+      try {
+        const { data, error } = await UI().db().from('clientes')
+          .insert({ nome: n, telefone: tel || null }).select('id,nome,saldo_devedor').single();
+        if (error) throw error;
+        cache.clientes.push({ id: data.id, nome: data.nome, saldo_devedor: Number(data.saldo_devedor) || 0 });
+        cache.clientes.sort((a, b) => a.nome.localeCompare(b.nome));
+        venda.cliente_id = data.id;
+        m.close();
+        UI().toast('Cliente cadastrado.');
+        pintarMontar();
+      } catch (err) { UI().erro('Falha ao cadastrar cliente', err); btn.disabled = false; }
+    };
   }
 
   function adicionarItem() {
@@ -352,6 +389,7 @@
     btn.disabled = true;
     const db = UI().db();
     const editando = !!venda.editId;
+    if (editando && !AGB.isDono()) { UI().toast('Sem permissão para editar pedidos.', 'erro'); btn.disabled = false; return; }
     try {
       const cliente_id = venda.cliente_id === 'AVULSO' ? null : venda.cliente_id;
       const itens = venda.itens.map((i) => ({
