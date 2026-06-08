@@ -20,9 +20,9 @@
   const cache = {}; // listas para filtros
 
   const TRANS = {
-    vendas: { ped: 'pedidos_venda', pag: 'pagamentos_venda', emb: 'clientes', col: 'cliente_id',
+    vendas: { tipo: 'venda', emb: 'clientes', col: 'cliente_id',
               label: 'Cliente', lista: 'clientes', avulso: true, titulo: 'RELATÓRIO DE VENDAS' },
-    compras: { ped: 'pedidos_compra', pag: 'pagamentos_compra', emb: 'fornecedores', col: 'fornecedor_id',
+    compras: { tipo: 'compra', emb: 'fornecedores', col: 'fornecedor_id',
                label: 'Fornecedor', lista: 'fornecedores', avulso: false, titulo: 'RELATÓRIO DE COMPRAS' }
   };
 
@@ -120,40 +120,34 @@
   }
 
   async function consultarTransacao(cfg, f) {
-    const db = UI().db();
-    let q = db.from(cfg.ped)
-      .select(`id,numero,data,total,${cfg.col},${cfg.emb}(nome),vendedores(nome)`)
-      .gte('data', isoStart(f.ini)).lt('data', isoEndExcl(f.fim))
-      .order('data', { ascending: true });
-    if (f.contra) q = q.eq(cfg.col, f.contra);
-    if (f.vend) q = q.eq('vendedor_id', f.vend);
-    const { data: pedidos0, error } = await q;
+    // Agregação no SERVIDOR (RPC rel_transacao): totais corretos sobre TODOS
+    // os pedidos do período — sem o limite de 1000 linhas do PostgREST. Devolve
+    // um único JSON compacto (totais + por modalidade + lista de pedidos).
+    const { data, error } = await UI().db().rpc('rel_transacao', {
+      p_tipo: cfg.tipo,
+      p_ini: isoStart(f.ini),
+      p_fim: isoEndExcl(f.fim),
+      p_contra: f.contra || null,
+      p_vend: f.vend || null,
+      p_forma: f.forma || null
+    });
     if (error) throw error;
-    let pedidos = pedidos0 || [];
-    let ids = pedidos.map((p) => p.id);
-
-    let pags = [];
-    if (ids.length) {
-      const { data, error: e2 } = await db.from(cfg.pag).select('pedido_id,modalidade,valor').in('pedido_id', ids);
-      if (e2) throw e2;
-      pags = data || [];
-    }
-    if (f.forma) {
-      const comForma = new Set(pags.filter((p) => p.modalidade === f.forma).map((p) => p.pedido_id));
-      pedidos = pedidos.filter((p) => comForma.has(p.id));
-      const idset = new Set(pedidos.map((p) => p.id));
-      pags = pags.filter((p) => idset.has(p.pedido_id));
-    }
-    const total = pedidos.reduce((s, p) => s + Number(p.total), 0);
-    const mods = { dinheiro: 0, pix: 0, cartao: 0, boleto: 0 };
-    pags.forEach((p) => { mods[p.modalidade] = (mods[p.modalidade] || 0) + Number(p.valor); });
-    const pago = MOD_ORDEM.reduce((s, m) => s + mods[m], 0);
-    return { pedidos, total, mods, aberto: total - pago, qtd: pedidos.length };
+    const r = data || {};
+    const m = r.mods || {};
+    return {
+      pedidos: r.pedidos || [],
+      total: Number(r.total) || 0,
+      mods: {
+        dinheiro: Number(m.dinheiro) || 0, pix: Number(m.pix) || 0,
+        cartao: Number(m.cartao) || 0, boleto: Number(m.boleto) || 0
+      },
+      aberto: Number(r.aberto) || 0,
+      qtd: Number(r.qtd) || 0
+    };
   }
 
   function nomeContra(cfg, p) {
-    const emb = p[cfg.emb];
-    if (emb && emb.nome) return emb.nome;
+    if (p.contra) return p.contra;
     return cfg.avulso ? 'Avulso' : '—';
   }
 
@@ -163,10 +157,13 @@
       <tr>
         <td>${p.numero}</td>
         <td>${UI().dataCurta(p.data)}</td>
-        <td class="${(!p[cfg.emb] && cfg.avulso) ? 'avulso-tag' : ''}">${UI().esc(nomeContra(cfg, p))}</td>
-        <td>${UI().esc((p.vendedores && p.vendedores.nome) || '—')}</td>
+        <td class="${(!p.contra && cfg.avulso) ? 'avulso-tag' : ''}">${UI().esc(nomeContra(cfg, p))}</td>
+        <td>${UI().esc(p.vendedor || '—')}</td>
         <td class="td-valor">${UI().money(p.total)}</td>
       </tr>`).join('');
+    const notaLista = r.pedidos.length < r.qtd
+      ? `<p class="muted" style="font-size:.8rem;margin:6px 2px 0">Listagem limitada aos ${r.pedidos.length} primeiros do período — os totais acima já consideram todos os ${r.qtd} pedidos.</p>`
+      : '';
     res.innerHTML = `
       <div class="resumo-cards">
         <div class="resumo-card"><span>Total geral</span><strong>${UI().money(r.total)}</strong></div>
@@ -185,6 +182,7 @@
           ${r.qtd ? `<div class="cad-lista" style="box-shadow:none;border:none">
             <table class="tabela"><thead><tr><th>Nº</th><th>Data</th><th>${cfg.label}</th><th>Vendedor</th><th>Total</th></tr></thead>
             <tbody>${linhas}</tbody></table></div>` : '<div class="empty-sm">Nenhum pedido no período/filtros.</div>'}
+          ${notaLista}
         </section>
       </div>`;
   }
@@ -197,15 +195,21 @@
       f.vend ? `Vendedor: ${(r.vendLista.find((v) => v.id === f.vend) || {}).nome || ''}` : '',
       f.forma ? `Forma: ${MOD_LABEL[f.forma]}` : ''
     ].filter(Boolean).join(' · ');
-    const itens = r.pedidos.map((p) => `
+    const PRINT_CAP = 300;
+    const lista = r.pedidos.slice(0, PRINT_CAP);
+    const itens = lista.map((p) => `
       <div class="cp-item">
         <div class="cp-item-calc"><span>#${p.numero} ${UI().dataCurta(p.data)}</span><span>${UI().money(p.total)}</span></div>
-        <div class="cp-info">${UI().esc(nomeContra(cfg, p))}${(p.vendedores && p.vendedores.nome) ? ' · ' + UI().esc(p.vendedores.nome) : ''}</div>
+        <div class="cp-info">${UI().esc(nomeContra(cfg, p))}${p.vendedor ? ' · ' + UI().esc(p.vendedor) : ''}</div>
       </div>`).join('') || '<div class="cp-info">Nenhum pedido.</div>';
+    const notaPrint = r.qtd > lista.length
+      ? `<div class="cp-info">(listados ${lista.length} de ${r.qtd} — o TOTAL abaixo considera todos)</div>`
+      : '';
     const conteudo = `
       ${filtroExtra ? `<div class="cp-info">${filtroExtra}</div>` : ''}
       <div class="cp-sep"></div>
       ${itens}
+      ${notaPrint}
       <div class="cp-sep"></div>
       <div class="cp-sub">Por modalidade</div>
       ${MOD_ORDEM.map((m) => `<div class="cp-row"><span>${MOD_LABEL[m]}</span><span>${UI().money(r.mods[m])}</span></div>`).join('')}
@@ -262,14 +266,11 @@
   async function abrirHistorico(cfg, id, nome) {
     const db = UI().db();
     const m = UI().openModal({ titulo: 'Histórico — ' + nome, largura: '520px', corpo: '<div class="muted">Carregando...</div>' });
-    const [peds, ajs] = await Promise.all([
-      db.from(cfg.ped).select('numero,data,total').eq(cfg.col, id).order('data', { ascending: false }),
-      db.from('ajustes_saldo').select('tipo,valor,data,observacao').eq('tipo_entidade', cfg.tipoEnt).eq('entidade_id', id).order('data', { ascending: false })
-    ]);
-    const movimentos = [
-      ...(peds.data || []).map((p) => ({ data: p.data, txt: `${cfg.tipoEnt === 'cliente' ? 'Venda' : 'Compra'} #${p.numero}`, valor: Number(p.total), tipo: 'pedido' })),
-      ...(ajs.data || []).map((a) => ({ data: a.data, txt: 'Ajuste ' + a.tipo + (a.observacao ? ' · ' + a.observacao : ''), valor: (a.tipo === 'debito' ? 1 : -1) * Number(a.valor), tipo: 'ajuste' }))
-    ].sort((x, y) => new Date(y.data) - new Date(x.data));
+    // RPC rel_historico: pedidos + ajustes já unidos e ordenados no servidor
+    // (antes capava em 1000 lançamentos numa conta movimentada).
+    const { data, error } = await db.rpc('rel_historico', { p_tipo: cfg.tipoEnt, p_id: id });
+    if (error) { m.body.innerHTML = '<div class="empty-sm">Falha ao carregar histórico.</div>'; return; }
+    const movimentos = (data || []).map((mv) => ({ data: mv.data, txt: mv.txt, valor: Number(mv.valor), tipo: mv.tipo }));
 
     m.body.innerHTML = movimentos.length ? `
       <div class="hist-rel">
@@ -286,19 +287,14 @@
   async function telaProdutos() {
     const box = main.querySelector('#rel-conteudo');
     box.innerHTML = `<div class="muted" style="padding:18px">Apurando produtos mais vendidos...</div>`;
-    const { data, error } = await UI().db().from('itens_venda')
-      .select('produto_id,quantidade,valor,produtos(nome,unidade)');
+    // Apuração no SERVIDOR (RPC rel_produtos): top 30 por qtd e por valor sobre
+    // TODOS os itens — antes baixava a tabela inteira e capava em 1000 itens.
+    const { data, error } = await UI().db().rpc('rel_produtos', { p_limit: 30 });
     if (error) { UI().erro('Falha ao apurar produtos', error); return; }
-    const mapa = {};
-    (data || []).forEach((it) => {
-      const k = it.produto_id;
-      if (!mapa[k]) mapa[k] = { nome: it.produtos ? it.produtos.nome : '(produto removido)', unidade: it.produtos ? it.produtos.unidade : '', qtd: 0, valor: 0 };
-      mapa[k].qtd += Number(it.quantidade);
-      mapa[k].valor += Number(it.valor);
-    });
-    const arr = Object.values(mapa);
-    const porQtd = [...arr].sort((a, b) => b.qtd - a.qtd).slice(0, 30);
-    const porValor = [...arr].sort((a, b) => b.valor - a.valor).slice(0, 30);
+    const norm = (x) => ({ nome: x.nome || '(produto removido)', unidade: x.unidade || '', qtd: Number(x.qtd) || 0, valor: Number(x.valor) || 0 });
+    const porQtd = ((data && data.por_qtd) || []).map(norm);
+    const porValor = ((data && data.por_valor) || []).map(norm);
+    const totalProdutos = (data && data.total_produtos) || 0;
 
     const tabela = (rows, tipo) => rows.length ? `
       <table class="tabela"><thead><tr><th>#</th><th>Produto</th><th>${tipo === 'qtd' ? 'Qtd' : 'Valor'}</th></tr></thead>
@@ -308,7 +304,7 @@
 
     box.innerHTML = `
       <div class="resumo-cards">
-        <div class="resumo-card"><span>Produtos vendidos</span><strong>${arr.length}</strong></div>
+        <div class="resumo-card"><span>Produtos vendidos</span><strong>${totalProdutos}</strong></div>
         <div class="resumo-acoes"><button id="rel-imprimir" class="btn btn-ghost">🖨 Imprimir</button></div>
       </div>
       <div class="dash-cols">

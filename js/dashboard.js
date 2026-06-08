@@ -19,22 +19,24 @@
     return UI().esc(s.slice(0, i)) + '<span class="dk-cents">' + UI().esc(s.slice(i)) + '</span>';
   }
 
-  async function carregarLado(tabelaPedido, tabelaPag, { ini, fim }) {
-    const db = UI().db();
-    const { data: pedidos, error } = await db.from(tabelaPedido)
-      .select('id,total').gte('data', ini).lt('data', fim);
+  async function carregarLado(tipo, { ini, fim }) {
+    // Agregação no servidor (RPC rel_transacao, sem lista) — imune ao limite
+    // de 1000 linhas do PostgREST mesmo num dia de movimento pesado.
+    const { data, error } = await UI().db().rpc('rel_transacao', {
+      p_tipo: tipo, p_ini: ini, p_fim: fim,
+      p_contra: null, p_vend: null, p_forma: null, p_lista_limit: 0
+    });
     if (error) throw error;
-    const total = (pedidos || []).reduce((s, p) => s + Number(p.total), 0);
-    const ids = (pedidos || []).map(p => p.id);
-    const mods = { dinheiro: 0, pix: 0, cartao: 0, boleto: 0 };
-    if (ids.length) {
-      const { data: pags, error: e2 } = await db.from(tabelaPag)
-        .select('modalidade,valor').in('pedido_id', ids);
-      if (e2) throw e2;
-      (pags || []).forEach(p => { mods[p.modalidade] = (mods[p.modalidade] || 0) + Number(p.valor); });
-    }
-    const pago = MOD_ORDEM.reduce((s, m) => s + mods[m], 0);
-    return { qtd: (pedidos || []).length, total, mods, aberto: total - pago };
+    const r = data || {}; const m = r.mods || {};
+    return {
+      qtd: Number(r.qtd) || 0,
+      total: Number(r.total) || 0,
+      mods: {
+        dinheiro: Number(m.dinheiro) || 0, pix: Number(m.pix) || 0,
+        cartao: Number(m.cartao) || 0, boleto: Number(m.boleto) || 0
+      },
+      aberto: Number(r.aberto) || 0
+    };
   }
 
   async function carregarSaldos() {
@@ -61,27 +63,24 @@
   }
 
   async function carregarFluxo7Dias() {
-    const db = UI().db();
     const hoje = new Date();
     const sete = new Date(hoje); sete.setDate(hoje.getDate() - 6); sete.setHours(0, 0, 0, 0);
     const fim = new Date(hoje); fim.setDate(hoje.getDate() + 1); fim.setHours(0, 0, 0, 0);
-    const [rv, rc] = await Promise.all([
-      db.from('pedidos_venda').select('data,total').gte('data', sete.toISOString()).lt('data', fim.toISOString()),
-      db.from('pedidos_compra').select('data,total').gte('data', sete.toISOString()).lt('data', fim.toISOString())
-    ]);
-    if (rv.error) throw rv.error;
-    if (rc.error) throw rc.error;
+    // Soma por dia no servidor (RPC rel_fluxo) — antes baixava 7 dias de
+    // pedidos (1750+ no volume pesado) e capava em 1000 linhas.
+    const { data, error } = await UI().db().rpc('rel_fluxo', {
+      p_ini: sete.toISOString(), p_fim: fim.toISOString()
+    });
+    if (error) throw error;
+    const vMap = (data && data.vendas) || {};
+    const cMap = (data && data.compras) || {};
     const dias = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(hoje); d.setDate(hoje.getDate() - i);
       dias.push(d.toISOString().slice(0, 10));
     }
-    const vPD = {}; const cPD = {};
-    dias.forEach(d => { vPD[d] = 0; cPD[d] = 0; });
-    (rv.data || []).forEach(p => { const d = p.data.slice(0, 10); if (vPD[d] !== undefined) vPD[d] += Number(p.total); });
-    (rc.data || []).forEach(p => { const d = p.data.slice(0, 10); if (cPD[d] !== undefined) cPD[d] += Number(p.total); });
-    const vendas = dias.map(d => vPD[d]);
-    const compras = dias.map(d => cPD[d]);
+    const vendas = dias.map(d => Number(vMap[d]) || 0);
+    const compras = dias.map(d => Number(cMap[d]) || 0);
     return { dias, vendas, compras, totalVendas: vendas.reduce((s, v) => s + v, 0) };
   }
 
@@ -143,8 +142,8 @@
     try {
       const hoje = intervaloHoje();
       [v, c, saldos, ultimos, fluxo] = await Promise.all([
-        carregarLado('pedidos_venda', 'pagamentos_venda', hoje),
-        carregarLado('pedidos_compra', 'pagamentos_compra', hoje),
+        carregarLado('venda', hoje),
+        carregarLado('compra', hoje),
         carregarSaldos(),
         carregarUltimos(),
         carregarFluxo7Dias()
