@@ -193,6 +193,9 @@ button { font-family: inherit; cursor: pointer; }
 
 .top-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .top-actions .btn svg { width: 17px; height: 17px; }
+/* "Nova compra" branco como no exemplo */
+.top-actions .btn-ghost { background: var(--surface); color: var(--ink); border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.top-actions .btn-ghost:hover { border-color: var(--brand); color: var(--brand-600); background: var(--surface); filter: none; }
 .tb-bell {
   width: 40px; height: 40px; border-radius: 11px; border: 1px solid var(--border-strong);
   background: var(--surface); display: grid; place-items: center; color: var(--ink-2);
