@@ -72,7 +72,8 @@ button { font-family: inherit; cursor: pointer; }
   outline: 3px solid var(--verde-claro);
   outline-offset: 2px;
 }
-.pin-pad button:focus-visible {
+.pin-screen .enter-btn:focus-visible,
+.pin-screen .eye:focus-visible {
   outline: 3px solid rgba(255,255,255,.85);
   outline-offset: 2px;
 }
@@ -245,54 +246,139 @@ button { font-family: inherit; cursor: pointer; }
 }
 .scrim.show { opacity: 1; pointer-events: auto; }
 
-/* ---- Tela de PIN --------------------------------------------------- */
+/* ---- Tela de Acesso (PIN) — cena premium --------------------------- */
 body.locked { overflow: hidden; }
 .pin-screen {
-  position: fixed; inset: 0; z-index: 100;
-  background: var(--grad-dark);
-  color: #fff;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 20px; padding: 24px;
+  position: fixed; inset: 0; z-index: 100; overflow: auto;
+  color: #EAF4EE; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
-.pin-logo { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.pin-logo img { width: 92px; height: 92px; border-radius: 22px; background: #fff; padding: 6px; box-shadow: var(--sombra-up); }
-.pin-logo .nome { font-size: 1.35rem; font-weight: 800; color: #fff; letter-spacing: .3px; }
-.pin-logo .sub { color: rgba(255,255,255,.7); font-size: .82rem; }
-.pin-prompt { color: rgba(255,255,255,.8); }
+.pin-screen .scene {
+  position: relative; min-height: 100vh; overflow: hidden;
+  background:
+    radial-gradient(900px 640px at 12% 2%, rgba(40,210,120,.22), transparent 55%),
+    radial-gradient(720px 600px at 92% 8%, rgba(240,146,30,.14), transparent 58%),
+    radial-gradient(900px 760px at 78% 108%, rgba(26,154,85,.34), transparent 60%),
+    linear-gradient(155deg,#1a4d31 0%,#103021 38%,#0A1E12 72%,#061309 100%);
+}
+.pin-screen .scene::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .22; z-index: 0;
+  background-image: radial-gradient(rgba(255,255,255,.05) 1px,transparent 1.5px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(1100px 900px at 30% 20%,#000,transparent 78%);
+          mask-image: radial-gradient(1100px 900px at 30% 20%,#000,transparent 78%);
+}
+.pin-screen .leaves { position: absolute; inset: -40px; z-index: 0; pointer-events: none; opacity: .5; }
+.pin-screen .leaves svg { width: 100%; height: 100%; }
+.pin-screen .ring { position: absolute; border-radius: 50%; border: 1px solid rgba(255,255,255,.06); pointer-events: none; z-index: 0; }
+.pin-screen .ring.a { width: 560px; height: 560px; left: -160px; bottom: -200px; }
+.pin-screen .ring.b { width: 820px; height: 820px; left: -300px; bottom: -340px; border-color: rgba(255,255,255,.04); }
 
-.pin-dots { display: flex; gap: 16px; }
-.pin-dot {
-  width: 16px; height: 16px; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,.7); background: transparent;
-  transition: background .15s, transform .15s;
+/* topbar de marca */
+.pin-screen .acc-topbar { position: relative; z-index: 3; display: flex; align-items: center; gap: 14px; padding: 30px 56px; }
+.pin-screen .acc-logo {
+  width: 54px; height: 54px; border-radius: 15px; flex: none; overflow: hidden; background: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6),0 12px 26px -8px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.12);
 }
-.pin-dot.filled { background: #fff; border-color: #fff; transform: scale(1.05); }
+.pin-screen .acc-logo img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.06); }
+.pin-screen .acc-bn { font-weight: 800; font-size: 18px; color: #fff; letter-spacing: -.01em; white-space: nowrap; }
+.pin-screen .acc-bs { font-size: 12px; color: #8FB29C; font-weight: 600; margin-top: 1px; }
+.pin-screen .acc-help {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #BFE0CC;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); padding: 9px 15px; border-radius: 30px; cursor: pointer;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.pin-screen .acc-help svg { width: 16px; height: 16px; }
 
-.pin-error { color: #fecaca; min-height: 1.2em; font-size: .9rem; }
+/* split principal */
+.pin-screen .acc-grid {
+  position: relative; z-index: 2; display: grid; grid-template-columns: 1.08fr .92fr; gap: 40px;
+  align-items: center; padding: 6px 56px 56px; max-width: 1280px; margin: 0 auto;
+}
+.pin-screen .acc-left { position: relative; max-width: 540px; }
+.pin-screen .acc-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: #9FE6BB; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+  padding: 7px 14px; border-radius: 30px; margin-bottom: 20px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.pin-screen .acc-eyebrow svg { width: 14px; height: 14px; }
+.pin-screen .acc-left h1 { font-size: 40px; line-height: 1.08; font-weight: 800; letter-spacing: -.03em; color: #fff; }
+.pin-screen .acc-left h1 .hl { color: #FFB347; }
+.pin-screen .acc-left p { font-size: 15px; line-height: 1.55; color: #A9C6B5; margin-top: 16px; max-width: 430px; }
+.pin-screen .acc-trust { display: flex; gap: 22px; margin-top: 34px; }
+.pin-screen .acc-trust .ti { display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 600; color: #9DBDAC; }
+.pin-screen .acc-trust .ti svg { width: 16px; height: 16px; color: #7fe6a6; }
 
-.pin-pad {
-  display: grid; grid-template-columns: repeat(3, 72px);
-  gap: 14px;
+/* card de login em vidro escuro */
+.pin-screen .acc-right { display: flex; justify-content: center; }
+.pin-screen .lockcard {
+  width: 100%; max-width: 332px; color: #EAF4EE;
+  background: rgba(11,32,20,.55); border: 1px solid rgba(255,255,255,.12); border-radius: 22px;
+  box-shadow: 0 28px 64px -30px rgba(0,0,0,.65);
+  backdrop-filter: blur(22px) saturate(1.25); -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  padding: 28px 28px 24px; position: relative;
 }
-.pin-pad button {
-  height: 72px; border-radius: 50%;
-  border: 1px solid rgba(255,255,255,.2);
-  background: rgba(255,255,255,.08);
-  font-size: 1.5rem; font-weight: 600; color: #fff;
-  transition: transform .08s, background .12s;
+.pin-screen .lockcard::before { content: ""; position: absolute; inset: 0; border-radius: 22px; pointer-events: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.12); }
+.pin-screen .lc-head { text-align: center; margin-bottom: 20px; }
+.pin-screen .lc-badge {
+  width: 48px; height: 48px; border-radius: 14px; margin: 0 auto 13px; overflow: hidden; background: #fff;
+  box-shadow: 0 8px 20px -8px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.18);
 }
-.pin-pad button:hover { background: rgba(255,255,255,.16); }
-.pin-pad button:active { transform: scale(.94); background: rgba(255,255,255,.24); }
-.pin-pad .pad-empty { visibility: hidden; box-shadow: none; border: none; background: transparent; }
-.pin-pad .pad-back { font-size: 1.3rem; }
+.pin-screen .lc-badge img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.06); }
+.pin-screen .lc-head h2 { font-size: 18px; font-weight: 800; letter-spacing: -.02em; color: #fff; }
+.pin-screen .lc-head p { font-size: 12.5px; color: #9DBDAC; font-weight: 600; margin-top: 4px; }
 
-@keyframes pinShake {
-  0%,100% { transform: translateX(0); }
-  20%,60% { transform: translateX(-9px); }
-  40%,80% { transform: translateX(9px); }
+.pin-screen .field-label { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #9DBDAC; margin-bottom: 9px; display: block; }
+.pin-screen .field {
+  display: flex; align-items: center; gap: 11px; height: 54px; padding: 0 6px 0 15px; border-radius: 14px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); transition: .16s;
 }
-.pin-shake .pin-dots { animation: pinShake .4s; }
+.pin-screen .field:focus-within { border-color: #36c878; background: rgba(255,255,255,.10); box-shadow: 0 0 0 3px rgba(54,200,120,.18); }
+.pin-screen .field > .lk { width: 18px; height: 18px; color: #7fae93; flex: none; }
+.pin-screen .field input {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none; font-family: inherit;
+  font-size: 20px; font-weight: 700; color: #fff; letter-spacing: .42em;
+}
+.pin-screen .field input::placeholder { color: rgba(255,255,255,.28); letter-spacing: .42em; font-weight: 600; }
+.pin-screen .eye {
+  width: 38px; height: 42px; flex: none; border: none; background: transparent; cursor: pointer; color: #7fae93;
+  display: grid; place-items: center; border-radius: 10px; transition: .14s;
+}
+.pin-screen .eye:hover { color: #cfe6d8; background: rgba(255,255,255,.06); }
+.pin-screen .eye svg { width: 18px; height: 18px; }
+.pin-screen .field.error { border-color: #FF7A6B; box-shadow: 0 0 0 3px rgba(255,122,107,.16); }
+.pin-screen .field.shake { animation: accShake .4s; }
+@keyframes accShake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+.pin-screen .hint { height: 16px; text-align: center; font-size: 12px; font-weight: 700; margin: 11px 0 4px; color: #FF7A6B; opacity: 0; transition: .18s; }
+.pin-screen .hint.show { opacity: 1; }
+.pin-screen .hint.ok { color: #5fe39a; }
+
+.pin-screen .enter-btn {
+  width: 100%; height: 52px; margin-top: 14px; border: none; border-radius: 14px; cursor: pointer;
+  background: #1A9A55; color: #fff; font-family: inherit; font-weight: 800; font-size: 15px; letter-spacing: .01em;
+  display: flex; align-items: center; justify-content: center; gap: 9px; transition: .14s;
+  box-shadow: 0 12px 24px -10px rgba(26,154,85,.95);
+}
+.pin-screen .enter-btn:hover { background: #22b365; }
+.pin-screen .enter-btn:active { transform: scale(.985); }
+.pin-screen .enter-btn svg { width: 18px; height: 18px; }
+
+.pin-screen .lc-foot { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 20px; font-size: 11.5px; color: #8FB29C; font-weight: 600; }
+.pin-screen .lc-foot svg { width: 13px; height: 13px; color: #5fe39a; }
+.pin-screen .lc-legal { text-align: center; margin-top: 14px; font-size: 11px; color: #6F9080; font-weight: 600; }
+
+@media (max-width: 980px) {
+  .pin-screen .acc-grid { grid-template-columns: 1fr; gap: 30px; padding-top: 10px; }
+  .pin-screen .acc-left { max-width: none; text-align: center; margin: 0 auto; }
+  .pin-screen .acc-eyebrow { margin-left: auto; margin-right: auto; }
+  .pin-screen .acc-left p { margin-left: auto; margin-right: auto; }
+  .pin-screen .acc-trust { justify-content: center; flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+  .pin-screen .acc-topbar { padding: 22px 24px; }
+  .pin-screen .acc-grid { padding: 6px 24px 40px; }
+  .pin-screen .acc-left h1 { font-size: 30px; }
+  .pin-screen .acc-help { display: none; }
+}
 
 /* ---- Botões -------------------------------------------------------- */
 .btn {

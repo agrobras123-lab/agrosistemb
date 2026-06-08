@@ -16,34 +16,84 @@
 </head>
 <body class="locked">
 
-  <!-- ===================== TELA DE PIN ===================== -->
+  <!-- ===================== TELA DE ACESSO (PIN) ===================== -->
   <div id="pin-screen" class="pin-screen">
-    <div class="pin-logo">
-      <img src="./assets/icon-512.png" alt="Agro Bras" />
-      <div class="nome">Agro Bras Hortifruti</div>
-      <div class="sub">Largo do Pari 330 · Box 57-62 · São Paulo</div>
-    </div>
-    <div class="pin-prompt">Digite o PIN de acesso</div>
-    <div id="pin-dots" class="pin-dots">
-      <span class="pin-dot"></span>
-      <span class="pin-dot"></span>
-      <span class="pin-dot"></span>
-      <span class="pin-dot"></span>
-    </div>
-    <div id="pin-error" class="pin-error" aria-live="polite"></div>
-    <div id="pin-pad" class="pin-pad">
-      <button data-key="1">1</button>
-      <button data-key="2">2</button>
-      <button data-key="3">3</button>
-      <button data-key="4">4</button>
-      <button data-key="5">5</button>
-      <button data-key="6">6</button>
-      <button data-key="7">7</button>
-      <button data-key="8">8</button>
-      <button data-key="9">9</button>
-      <button class="pad-empty" tabindex="-1"></button>
-      <button data-key="0">0</button>
-      <button class="pad-back" data-key="back" aria-label="Apagar">⌫</button>
+    <div class="scene">
+      <!-- arte botânica baseada no logo (espiral + folhinhas) -->
+      <div class="leaves" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1000 1000">
+          <defs>
+            <pattern id="logomark" width="260" height="260" patternUnits="userSpaceOnUse" patternTransform="rotate(-8)">
+              <g transform="translate(66,84)" fill="none" stroke="#bfe6cc" stroke-opacity=".40" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M30,0 A27.5,27.5 0 0 0 -25,0 A22.5,22.5 0 0 0 20,0 A17.5,17.5 0 0 0 -15,0 A12.5,12.5 0 0 0 10,0 A8,8 0 0 0 -6,0 A4.5,4.5 0 0 0 3,0"/>
+                <path d="M2,-30 C-7,-37 -11,-47 -10,-58 C-1,-53 5,-43 2,-30 Z"/>
+                <path d="M5,-30 C13,-38 18,-47 19,-58 C9,-53 3,-42 5,-30 Z"/>
+              </g>
+              <g transform="translate(188,196) rotate(18) scale(.78)" fill="none" stroke="#bfe6cc" stroke-opacity=".40" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M30,0 A27.5,27.5 0 0 0 -25,0 A22.5,22.5 0 0 0 20,0 A17.5,17.5 0 0 0 -15,0 A12.5,12.5 0 0 0 10,0 A8,8 0 0 0 -6,0 A4.5,4.5 0 0 0 3,0"/>
+                <path d="M2,-30 C-7,-37 -11,-47 -10,-58 C-1,-53 5,-43 2,-30 Z"/>
+                <path d="M5,-30 C13,-38 18,-47 19,-58 C9,-53 3,-42 5,-30 Z"/>
+              </g>
+              <g transform="translate(214,74) scale(.5)" fill="none" stroke="#FFB347" stroke-opacity=".30" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M30,0 A27.5,27.5 0 0 0 -25,0 A22.5,22.5 0 0 0 20,0 A17.5,17.5 0 0 0 -15,0 A12.5,12.5 0 0 0 10,0 A8,8 0 0 0 -6,0 A4.5,4.5 0 0 0 3,0"/>
+                <path d="M2,-30 C-7,-37 -11,-47 -10,-58 C-1,-53 5,-43 2,-30 Z"/>
+                <path d="M5,-30 C13,-38 18,-47 19,-58 C9,-53 3,-42 5,-30 Z"/>
+              </g>
+            </pattern>
+          </defs>
+          <rect width="1000" height="1000" fill="url(#logomark)"/>
+        </svg>
+      </div>
+      <span class="ring a"></span>
+      <span class="ring b"></span>
+
+      <!-- topo de marca -->
+      <header class="acc-topbar">
+        <div class="acc-logo"><img src="./assets/icon-192.png" alt="Agro Bras" /></div>
+        <div>
+          <div class="acc-bn">Agro Bras Hortifruti</div>
+          <div class="acc-bs">Sistema de gestão · ERP</div>
+        </div>
+      </header>
+
+      <div class="acc-grid">
+        <!-- ESQUERDA -->
+        <section class="acc-left">
+          <span class="acc-eyebrow"><i data-lucide="shield-check"></i> Acesso seguro ao painel</span>
+          <h1>Toda a sua <span class="hl">operação</span><br />em um só lugar.</h1>
+          <p>Vendas, compras e o caixa do dia do seu hortifruti, sempre à mão. Entre com seu PIN para continuar de onde parou.</p>
+          <div class="acc-trust">
+            <span class="ti"><i data-lucide="lock"></i> Dados protegidos</span>
+            <span class="ti"><i data-lucide="zap"></i> Acesso rápido por PIN</span>
+          </div>
+        </section>
+
+        <!-- DIREITA -->
+        <section class="acc-right">
+          <div class="lockcard">
+            <div class="lc-head">
+              <div class="lc-badge"><img src="./assets/icon-192.png" alt="Agro Bras" /></div>
+              <h2>Entrar no painel</h2>
+              <p>Digite seu PIN de acesso</p>
+            </div>
+
+            <form id="loginForm" autocomplete="off" novalidate>
+              <label class="field-label" for="pin">PIN de acesso</label>
+              <div class="field" id="field">
+                <i data-lucide="lock-keyhole" class="lk"></i>
+                <input id="pin" type="password" inputmode="numeric" autocomplete="off"
+                       maxlength="4" placeholder="• • • •" aria-label="PIN de acesso" />
+                <button type="button" class="eye" id="eye" aria-label="Mostrar PIN"><i data-lucide="eye"></i></button>
+              </div>
+              <div id="pin-error" class="hint" aria-live="polite">PIN incorreto, tente novamente</div>
+              <button type="submit" class="enter-btn" id="enterBtn">Entrar <i data-lucide="arrow-right"></i></button>
+            </form>
+
+            <div class="lc-foot"><i data-lucide="shield-check"></i> Conexão protegida</div>
+            <div class="lc-legal">© 2026 Agro Bras Hortifruti · v2.0</div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 
