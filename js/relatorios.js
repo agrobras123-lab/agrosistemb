@@ -379,7 +379,15 @@
     return p.pago < p.total - 0.005 ? lbl + ' (parcial)' : lbl;
   }
 
+  // Rótulo do saldo final conforme o sinal (positivo = deve; negativo = crédito).
+  function saldoFinalLinha(saldoFinal, ehCliente) {
+    if (saldoFinal > 0.005) return { lbl: ehCliente ? 'Saldo devedor' : 'Saldo a pagar', val: UI().money(saldoFinal), credito: false };
+    if (saldoFinal < -0.005) return { lbl: 'Crédito a favor', val: UI().money(-saldoFinal), credito: true };
+    return { lbl: ehCliente ? 'Em dia' : 'Quitado', val: UI().money(0), credito: false };
+  }
+
   function renderExtrato(res, cfg, r, t) {
+    const sf = saldoFinalLinha(r.saldoFinal, cfg.tipoEnt === 'cliente');
     const linhasPed = r.linhasPed.map((p) => `
       <tr><td>${p.numero}</td><td>${UI().dataCurta(p.data)}</td>
       <td>${UI().esc(formaTxt(p))}</td><td class="td-valor">${UI().money(p.total)}</td></tr>`).join('');
@@ -392,7 +400,7 @@
       <div class="resumo-cards" style="margin-bottom:10px">
         <div class="resumo-card"><span>Saldo anterior</span><strong class="${r.saldoAnt > 0.005 ? 'cor-deve' : ''}">${UI().money(r.saldoAnt)}</strong></div>
         <div class="resumo-card"><span>${t.movLabel} (${r.qtd})</span><strong>${UI().money(r.totalMov)}</strong></div>
-        <div class="resumo-card"><span>${t.saldoLabel}</span><strong class="${r.saldoFinal > 0.005 ? 'cor-deve' : 'saldo-credito'}">${UI().money(r.saldoFinal)}</strong></div>
+        <div class="resumo-card"><span>${sf.lbl}</span><strong class="${sf.credito ? 'saldo-credito' : (r.saldoFinal > 0.005 ? 'cor-deve' : '')}">${sf.val}</strong></div>
       </div>
       <section class="card bloco">
         <h3 class="bloco-titulo">${t.movLabel} no período</h3>
@@ -412,13 +420,14 @@
         <div class="cp-row mod-total" style="margin-top:6px"><span>Total créditos</span><span>${UI().money(r.totalCreditos)}</span></div>
       </section>
       <div class="cp-row mod-total" style="font-size:1.05rem;padding:10px 2px">
-        <span>${t.saldoLabel}</span>
-        <span class="${r.saldoFinal > 0.005 ? 'cor-deve' : 'saldo-credito'}">${UI().money(r.saldoFinal)}</span>
+        <span>${sf.lbl}</span>
+        <span class="${sf.credito ? 'saldo-credito' : (r.saldoFinal > 0.005 ? 'cor-deve' : '')}">${sf.val}</span>
       </div>`;
   }
 
   function printExtrato(cfg, nome, f, r, t) {
     const venLabel = t.movLabel.toUpperCase();
+    const sf = saldoFinalLinha(r.saldoFinal, cfg.tipoEnt === 'cliente');
     const peds = r.linhasPed.map((p) => `
       <div class="cp-item"><div class="cp-item-calc"><span>#${p.numero} ${UI().dataCurta(p.data)}</span><span>${UI().money(p.total)}</span></div>
       <div class="cp-info">${UI().esc(formaTxt(p))}</div></div>`).join('') || '<div class="cp-info">Nenhum.</div>';
@@ -445,7 +454,7 @@
       ${creds}
       <div class="cp-row cp-total"><span>TOTAL CRÉDITOS</span><span>${UI().money(r.totalCreditos)}</span></div>
       <div class="cp-sep"></div>
-      <div class="cp-row cp-total" style="font-size:1.1em"><span>${t.saldoLabel.toUpperCase()}</span><span>${UI().money(r.saldoFinal)}</span></div>`;
+      <div class="cp-row cp-total" style="font-size:1.1em"><span>${sf.lbl.toUpperCase()}</span><span>${sf.val}</span></div>`;
     return AGB.cupom.relatorio('EXTRATO — ' + (cfg.tipoEnt === 'cliente' ? 'CLIENTE' : 'FORNECEDOR'), '', conteudo);
   }
 
