@@ -237,7 +237,7 @@
         <td class="td-nome">${UI().esc(r.nome)}</td>
         <td>${UI().esc(r.telefone || '—')}</td>
         <td>${saldoBadge(r[cfg.saldoCol])}</td>
-        <td class="td-acoes"><button class="btn btn-sm btn-ghost" data-hist="${r.id}" data-nome="${UI().esc(r.nome)}">Histórico</button></td>
+        <td class="td-acoes"><button class="btn btn-sm btn-ghost" data-hist="${r.id}" data-nome="${UI().esc(r.nome)}">Extrato</button></td>
       </tr>`).join('');
 
     box.innerHTML = `
@@ -252,7 +252,7 @@
           <tbody>${linhas}</tbody></table>` : '<div class="empty">Nenhum cadastro.</div>'}
       </div>`;
 
-    box.querySelectorAll('[data-hist]').forEach((b) => b.onclick = () => abrirHistorico(cfg, b.dataset.hist, b.dataset.nome));
+    box.querySelectorAll('[data-hist]').forEach((b) => b.onclick = () => abrirExtrato(cfg, b.dataset.hist, b.dataset.nome));
     box.querySelector('#rel-imprimir').onclick = () => {
       const conteudo = `
         <div class="cp-sep"></div>
@@ -263,24 +263,190 @@
     };
   }
 
-  async function abrirHistorico(cfg, id, nome) {
-    const db = UI().db();
-    const m = UI().openModal({ titulo: 'Histórico — ' + nome, largura: '520px', corpo: '<div class="muted">Carregando...</div>' });
-    // RPC rel_historico: pedidos + ajustes já unidos e ordenados no servidor
-    // (antes capava em 1000 lançamentos numa conta movimentada).
-    const { data, error } = await db.rpc('rel_historico', { p_tipo: cfg.tipoEnt, p_id: id });
-    if (error) { m.body.innerHTML = '<div class="empty-sm">Falha ao carregar histórico.</div>'; return; }
-    const movimentos = (data || []).map((mv) => ({ data: mv.data, txt: mv.txt, valor: Number(mv.valor), tipo: mv.tipo }));
+  // ---------------------- EXTRATO (cliente/fornecedor) ----------------
+  // Conta-corrente no formato do "caderninho": saldo anterior + movimento
+  // do período (vendas/compras com forma de pagamento) + créditos/abatimentos
+  // = saldo final. Computado no cliente (1 entidade por vez = volume pequeno).
+  async function abrirExtrato(cfg, id, nome) {
+    const ehCliente = cfg.tipoEnt === 'cliente';
+    const tPag = ehCliente ? 'pagamentos_venda' : 'pagamentos_compra';
+    const movLabel = ehCliente ? 'Vendas' : 'Compras';
+    const saldoLabel = ehCliente ? 'Saldo devedor' : 'Saldo a pagar';
+    const per = periodoPadrao();
 
-    m.body.innerHTML = movimentos.length ? `
-      <div class="hist-rel">
-        ${movimentos.map((mv) => `<div class="hist-linha">
-          <span>${UI().dataCurta(mv.data)} · ${UI().esc(mv.txt)}</span>
-          <span class="${mv.valor >= 0 ? 'cor-deve' : 'saldo-credito'}">${UI().money(mv.valor)}</span>
-        </div>`).join('')}
+    const m = UI().openModal({ titulo: 'Extrato — ' + nome, largura: '620px', corpo: `
+      <div class="filtros" style="margin-bottom:12px">
+        <label class="campo"><span>De</span><input id="ex-ini" class="input" type="date" value="${per.ini}"/></label>
+        <label class="campo"><span>Até</span><input id="ex-fim" class="input" type="date" value="${per.fim}"/></label>
+        <div class="filtros-acoes">
+          <button id="ex-gerar" class="btn btn-primary">Gerar</button>
+          <button id="ex-imprimir" class="btn btn-ghost" disabled>🖨 Imprimir</button>
+        </div>
       </div>
-      <p class="muted" style="font-size:.8rem;margin-top:10px">Pedidos somam ao saldo; pagamentos/abatimentos reduzem (ver saldo atual na lista).</p>`
-      : '<div class="empty-sm">Sem movimentos registrados.</div>';
+      <div id="ex-result"><div class="muted" style="padding:8px">Escolha o período e clique em Gerar.</div></div>` });
+
+    let ultimo = null;
+
+    async function gerar() {
+      const f = { ini: m.body.querySelector('#ex-ini').value, fim: m.body.querySelector('#ex-fim').value };
+      if (!f.ini || !f.fim) { UI().toast('Informe o período.', 'erro'); return; }
+      const res = m.body.querySelector('#ex-result');
+      res.innerHTML = `<div class="muted" style="padding:8px">Gerando extrato...</div>`;
+      try {
+        const r = await consultarExtrato(cfg, id, f, tPag);
+        ultimo = { cfg, nome, f, r };
+        renderExtrato(res, cfg, r, { movLabel, saldoLabel });
+        m.body.querySelector('#ex-imprimir').disabled = false;
+      } catch (err) { UI().erro('Falha ao gerar extrato', err); res.innerHTML = ''; }
+    }
+
+    m.body.querySelector('#ex-gerar').onclick = gerar;
+    m.body.querySelector('#ex-imprimir').onclick = () => {
+      if (ultimo) AGB.cupom.imprimirHTML(printExtrato(ultimo.cfg, ultimo.nome, ultimo.f, ultimo.r, { movLabel, saldoLabel }));
+    };
+    gerar();
+  }
+
+  async function consultarExtrato(cfg, id, f, tPag) {
+    const db = UI().db();
+    const pIni = isoStart(f.ini), pFimEx = isoEndExcl(f.fim);
+    const r = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+    // Tudo da entidade (pedidos + ajustes); pagamentos dos pedidos. Volume por
+    // entidade é pequeno, então split por data acontece no cliente.
+    const [pedRes, ajRes] = await Promise.all([
+      db.from(cfg.ped).select('id,numero,data,total').eq(cfg.col, id).order('data', { ascending: true }),
+      db.from('ajustes_saldo').select('data,tipo,valor,observacao').eq('tipo_entidade', cfg.tipoEnt).eq('entidade_id', id).order('data', { ascending: true })
+    ]);
+    if (pedRes.error) throw pedRes.error;
+    if (ajRes.error) throw ajRes.error;
+    const pedidos = pedRes.data || [];
+    const ajustes = ajRes.data || [];
+
+    // pagamentos de todos os pedidos da entidade
+    const ids = pedidos.map((p) => p.id);
+    let pags = [];
+    if (ids.length) {
+      const pgRes = await db.from(tPag).select('pedido_id,modalidade,valor').in('pedido_id', ids);
+      if (pgRes.error) throw pgRes.error;
+      pags = pgRes.data || [];
+    }
+    const dataDoPedido = {}; pedidos.forEach((p) => { dataDoPedido[p.id] = p.data; });
+    const pagoPorPedido = {}; const formasPorPedido = {};
+    pags.forEach((g) => {
+      pagoPorPedido[g.pedido_id] = r((pagoPorPedido[g.pedido_id] || 0) + Number(g.valor));
+      (formasPorPedido[g.pedido_id] = formasPorPedido[g.pedido_id] || new Set()).add(g.modalidade);
+    });
+
+    const antes = (d) => d < pIni;
+    const dentro = (d) => d >= pIni && d < pFimEx;
+
+    // ---- Saldo anterior (tudo antes do período) ----
+    let saldoAnt = 0;
+    pedidos.forEach((p) => { if (antes(p.data)) saldoAnt = r(saldoAnt + Number(p.total)); });
+    pags.forEach((g) => { if (antes(dataDoPedido[g.pedido_id])) saldoAnt = r(saldoAnt - Number(g.valor)); });
+    ajustes.forEach((a) => { if (antes(a.data)) saldoAnt = r(saldoAnt + (a.tipo === 'debito' ? Number(a.valor) : -Number(a.valor))); });
+
+    // ---- Período: vendas/compras ----
+    const mods = { dinheiro: 0, pix: 0, cartao: 0, boleto: 0 };
+    const linhasPed = [];
+    let totalMov = 0;
+    pedidos.filter((p) => dentro(p.data)).forEach((p) => {
+      const pago = pagoPorPedido[p.id] || 0;
+      totalMov = r(totalMov + Number(p.total));
+      linhasPed.push({
+        numero: p.numero, data: p.data, total: Number(p.total), pago,
+        formas: formasPorPedido[p.id] ? Array.from(formasPorPedido[p.id]).join('+') : ''
+      });
+    });
+    pags.forEach((g) => { if (dentro(dataDoPedido[g.pedido_id]) && mods[g.modalidade] != null) mods[g.modalidade] = r(mods[g.modalidade] + Number(g.valor)); });
+    const totalPago = r(mods.dinheiro + mods.pix + mods.cartao + mods.boleto);
+    const parcial = r(totalMov - totalPago);
+
+    // ---- Período: créditos / débitos (ajustes) ----
+    const linhasCred = ajustes.filter((a) => dentro(a.data)).map((a) => ({ data: a.data, tipo: a.tipo, valor: Number(a.valor), observacao: a.observacao }));
+    const totalCreditos = r(linhasCred.filter((a) => a.tipo === 'credito').reduce((s, a) => s + a.valor, 0));
+    const totalDebitos = r(linhasCred.filter((a) => a.tipo === 'debito').reduce((s, a) => s + a.valor, 0));
+
+    const saldoFinal = r(saldoAnt + totalMov - totalPago - totalCreditos + totalDebitos);
+
+    return { saldoAnt, linhasPed, mods, totalMov, totalPago, parcial, linhasCred, totalCreditos, totalDebitos, saldoFinal, qtd: linhasPed.length };
+  }
+
+  function formaTxt(p) {
+    if (!(p.pago > 0.005)) return 'Fiado';
+    const lbl = p.formas.split('+').map((m) => MOD_LABEL[m] || m).join(' + ');
+    return p.pago < p.total - 0.005 ? lbl + ' (parcial)' : lbl;
+  }
+
+  function renderExtrato(res, cfg, r, t) {
+    const linhasPed = r.linhasPed.map((p) => `
+      <tr><td>${p.numero}</td><td>${UI().dataCurta(p.data)}</td>
+      <td>${UI().esc(formaTxt(p))}</td><td class="td-valor">${UI().money(p.total)}</td></tr>`).join('');
+    const linhasCred = r.linhasCred.map((a) => `
+      <div class="cp-row"><span>${UI().dataCurta(a.data)} · ${a.tipo === 'credito' ? 'Crédito' : 'Débito'}${a.observacao ? ' · ' + UI().esc(a.observacao) : ''}</span>
+      <span class="${a.tipo === 'credito' ? 'saldo-credito' : 'cor-deve'}">${a.tipo === 'credito' ? '-' : '+'}${UI().money(a.valor)}</span></div>`).join('')
+      || '<div class="empty-sm">Nenhum crédito/abatimento no período.</div>';
+
+    res.innerHTML = `
+      <div class="resumo-cards" style="margin-bottom:10px">
+        <div class="resumo-card"><span>Saldo anterior</span><strong class="${r.saldoAnt > 0.005 ? 'cor-deve' : ''}">${UI().money(r.saldoAnt)}</strong></div>
+        <div class="resumo-card"><span>${t.movLabel} (${r.qtd})</span><strong>${UI().money(r.totalMov)}</strong></div>
+        <div class="resumo-card"><span>${t.saldoLabel}</span><strong class="${r.saldoFinal > 0.005 ? 'cor-deve' : 'saldo-credito'}">${UI().money(r.saldoFinal)}</strong></div>
+      </div>
+      <section class="card bloco">
+        <h3 class="bloco-titulo">${t.movLabel} no período</h3>
+        ${r.qtd ? `<div class="cad-lista" style="box-shadow:none;border:none"><table class="tabela">
+          <thead><tr><th>Nº</th><th>Data</th><th>Forma</th><th>Valor</th></tr></thead>
+          <tbody>${linhasPed}</tbody></table></div>` : '<div class="empty-sm">Nenhum pedido no período.</div>'}
+        <div class="cp-row mod-linha" style="margin-top:8px"><span>Dinheiro</span><span>${UI().money(r.mods.dinheiro)}</span></div>
+        <div class="cp-row mod-linha"><span>Pix</span><span>${UI().money(r.mods.pix)}</span></div>
+        <div class="cp-row mod-linha"><span>Cartão</span><span>${UI().money(r.mods.cartao)}</span></div>
+        <div class="cp-row mod-linha"><span>Boleto</span><span>${UI().money(r.mods.boleto)}</span></div>
+        <div class="cp-row mod-linha mod-aberto"><span>Parcial (fiado)</span><span>${UI().money(r.parcial)}</span></div>
+        <div class="cp-row mod-total"><span>Total ${t.movLabel.toLowerCase()}</span><span>${UI().money(r.totalMov)}</span></div>
+      </section>
+      <section class="card bloco">
+        <h3 class="bloco-titulo">Créditos / abatimentos</h3>
+        ${linhasCred}
+        <div class="cp-row mod-total" style="margin-top:6px"><span>Total créditos</span><span>${UI().money(r.totalCreditos)}</span></div>
+      </section>
+      <div class="cp-row mod-total" style="font-size:1.05rem;padding:10px 2px">
+        <span>${t.saldoLabel}</span>
+        <span class="${r.saldoFinal > 0.005 ? 'cor-deve' : 'saldo-credito'}">${UI().money(r.saldoFinal)}</span>
+      </div>`;
+  }
+
+  function printExtrato(cfg, nome, f, r, t) {
+    const venLabel = t.movLabel.toUpperCase();
+    const peds = r.linhasPed.map((p) => `
+      <div class="cp-item"><div class="cp-item-calc"><span>#${p.numero} ${UI().dataCurta(p.data)}</span><span>${UI().money(p.total)}</span></div>
+      <div class="cp-info">${UI().esc(formaTxt(p))}</div></div>`).join('') || '<div class="cp-info">Nenhum.</div>';
+    const creds = r.linhasCred.map((a) => `
+      <div class="cp-row"><span>${UI().dataCurta(a.data)} ${a.tipo === 'credito' ? 'créd.' : 'déb.'}${a.observacao ? ' ' + UI().esc(a.observacao) : ''}</span>
+      <span>${a.tipo === 'credito' ? '-' : '+'}${UI().money(a.valor)}</span></div>`).join('') || '<div class="cp-info">Nenhum.</div>';
+    const conteudo = `
+      <div class="cp-info" style="text-align:center"><strong>${UI().esc(nome)}</strong></div>
+      <div class="cp-info" style="text-align:center">Período ${UI().dataCurta(isoStart(f.ini))} a ${UI().dataCurta(isoStart(f.fim))}</div>
+      <div class="cp-sep"></div>
+      <div class="cp-row"><span>Saldo anterior</span><span>${UI().money(r.saldoAnt)}</span></div>
+      <div class="cp-sep"></div>
+      <div class="cp-sub">${venLabel}</div>
+      ${peds}
+      <div class="cp-sep"></div>
+      <div class="cp-row"><span>Dinheiro</span><span>${UI().money(r.mods.dinheiro)}</span></div>
+      <div class="cp-row"><span>Pix</span><span>${UI().money(r.mods.pix)}</span></div>
+      <div class="cp-row"><span>Cartão</span><span>${UI().money(r.mods.cartao)}</span></div>
+      <div class="cp-row"><span>Boleto</span><span>${UI().money(r.mods.boleto)}</span></div>
+      <div class="cp-row"><span>Parcial (fiado)</span><span>${UI().money(r.parcial)}</span></div>
+      <div class="cp-row cp-total"><span>TOTAL ${venLabel}</span><span>${UI().money(r.totalMov)}</span></div>
+      <div class="cp-sep"></div>
+      <div class="cp-sub">CRÉDITOS / ABATIMENTOS</div>
+      ${creds}
+      <div class="cp-row cp-total"><span>TOTAL CRÉDITOS</span><span>${UI().money(r.totalCreditos)}</span></div>
+      <div class="cp-sep"></div>
+      <div class="cp-row cp-total" style="font-size:1.1em"><span>${t.saldoLabel.toUpperCase()}</span><span>${UI().money(r.saldoFinal)}</span></div>`;
+    return AGB.cupom.relatorio('EXTRATO — ' + (cfg.tipoEnt === 'cliente' ? 'CLIENTE' : 'FORNECEDOR'), '', conteudo);
   }
 
   // ============================ PRODUTOS ==============================
