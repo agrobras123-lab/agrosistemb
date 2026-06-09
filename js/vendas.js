@@ -18,11 +18,14 @@
   const MOD_ORDEM = ['dinheiro', 'pix', 'cartao', 'boleto'];
   const MOD_LABEL = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', boleto: 'Boleto' };
 
+  const VEND_KEY = 'agb_vendedor'; // lembra o último vendedor da sessão
+
   let main = null;
   let cache = { vendedores: [], clientes: [], produtos: [] };
   let venda = null;
   let cbCliente = null;
   let cbProduto = null;
+  let gravando = false;  // trava anti-duplo-envio (Enter pode disparar a gravação)
 
   // Texto curto de saldo (para o subtítulo do combobox de cliente)
   function saldoTexto(v) {
@@ -36,10 +39,11 @@
       step: 'montar',
       editId: null,            // id do pedido em edição (null = nova venda)
       editNumero: null,
-      vendedor_id: '',
+      vendedor_id: sessionStorage.getItem(VEND_KEY) || '',  // lembra o vendedor
       cliente_id: '',          // '' = ainda não escolhido; 'AVULSO' = avulsa
       itens: [],               // {produto_id, descricao, unidade, quantidade, preco_unit}
       observacao: '',
+      formaPg: '',             // '' | 'dinheiro' | 'pix' | 'cartao' | 'boleto' | 'fiado' | 'distribuir'
       pagamentos: { dinheiro: 0, pix: 0, cartao: 0, boleto: 0 },
       boletoVenc: '',
       resultado: null          // {numero, total, saldo, data}
@@ -67,6 +71,11 @@
         return;
       }
       cache = { vendedores: v.data || [], clientes: c.data || [], produtos: p.data || [], carregado: true };
+    }
+    // Vendedor lembrado pode ter sido desativado: descarta se não existir mais.
+    if (venda.vendedor_id && !cache.vendedores.some((v) => v.id === venda.vendedor_id)) {
+      venda.vendedor_id = '';
+      sessionStorage.removeItem(VEND_KEY);
     }
     pintar();
   }
@@ -109,7 +118,7 @@
               <button type="button" id="btn-novo-cliente" class="btn btn-ghost btn-sm" style="margin-top:6px">+ Novo cliente</button>
             </label>
           </div>
-          ${cliente ? `<div class="saldo-inline">Saldo atual: ${saldoBadge(cliente.saldo_devedor)}</div>` : ''}
+          <div class="saldo-inline" id="saldo-inline">${cliente ? `Saldo atual: ${saldoBadge(cliente.saldo_devedor)}` : ''}</div>
           ${cache.vendedores.length ? '' : '<p class="aviso">Nenhum vendedor ativo cadastrado. Cadastre em <strong>Cadastros → Vendedores</strong>.</p>'}
         </section>
 
@@ -132,19 +141,33 @@
 
         <div class="fluxo-rodape">
           <div class="rodape-total">Total: <strong>${UI().money(totalItens())}</strong></div>
-          <button id="ir-pagamento" class="btn btn-primary btn-grande">Pagamento →</button>
+          <button id="ir-pagamento" class="btn btn-primary btn-grande">Pagamento → <kbd>Enter</kbd></button>
         </div>
       </div>`;
 
     // Eventos
-    main.querySelector('#sel-vendedor').onchange = (e) => { venda.vendedor_id = e.target.value; };
+    const selVend = main.querySelector('#sel-vendedor');
+    selVend.onchange = (e) => {
+      venda.vendedor_id = e.target.value;
+      if (venda.vendedor_id) sessionStorage.setItem(VEND_KEY, venda.vendedor_id);  // lembra
+      else sessionStorage.removeItem(VEND_KEY);
+    };
+    // Enter no vendedor pula para o cliente (ajuda na 1ª venda da sessão).
+    selVend.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); cbCliente && cbCliente.focus(); } };
 
     cbCliente = UI().combobox(main.querySelector('#cb-cliente'), {
       placeholder: 'Buscar cliente ou Avulso...',
       value: venda.cliente_id,
       items: [{ id: 'AVULSO', label: 'Avulso (sem cliente)', sub: '' }].concat(
         cache.clientes.map((c) => ({ id: c.id, label: c.nome, sub: saldoTexto(c.saldo_devedor) }))),
-      onChange: (id) => { venda.cliente_id = id; pintarMontar(); }
+      // Atualiza só o saldo inline e foca o produto — sem re-render (preserva o ritmo no teclado).
+      onChange: (id) => {
+        venda.cliente_id = id;
+        const sl = main.querySelector('#saldo-inline');
+        const c = clienteAtual();
+        if (sl) sl.innerHTML = c ? 'Saldo atual: ' + saldoBadge(c.saldo_devedor) : '';
+        if (cbProduto) cbProduto.focus();
+      }
     });
 
     cbProduto = UI().combobox(main.querySelector('#cb-produto'), {
@@ -153,7 +176,9 @@
         id: p.id, label: p.nome, sub: p.unidade, code: p.codigo
       })),
       // Ao escolher o produto, pula direto para a quantidade (agiliza a venda).
-      onChange: () => { const q = main.querySelector('#it-qtd'); if (q) q.focus(); }
+      onChange: () => { const q = main.querySelector('#it-qtd'); if (q) q.focus(); },
+      // Enter no produto vazio (depois de lançar os itens) avança para o pagamento.
+      onEnterEmpty: irParaPagamento
     });
 
     main.querySelector('#it-add').onclick = adicionarItem;
@@ -171,6 +196,13 @@
     const btnExcluirEdit = main.querySelector('#btn-excluir-edit');
     if (btnExcluirEdit) btnExcluirEdit.onclick = () => excluirVenda(venda.editId, venda.editNumero, null);
     renderItens();
+
+    // Autofoco: sem vendedor → vendedor; sem cliente → cliente; senão → produto.
+    setTimeout(() => {
+      if (!venda.vendedor_id) selVend.focus();
+      else if (!venda.cliente_id && cbCliente) cbCliente.focus();
+      else if (cbProduto) cbProduto.focus();
+    }, 30);
   }
 
   // ---- Busca / edição / reimpressão ---------------------------------
@@ -415,8 +447,61 @@
   }
 
   // ===================== PASSO 2: PAGAMENTO ==========================
+  // Formas com atalho por número (casam com os códigos do sistema antigo).
+  function formasPagamento(avulso) {
+    return [
+      { f: 'dinheiro', n: '1', l: 'Dinheiro' },
+      { f: 'distribuir', n: '2', l: 'Distribuir entre formas' },
+      { f: 'boleto', n: '3', l: 'Boleto' },
+      ...(avulso ? [] : [{ f: 'fiado', n: '4', l: 'Fiado / saldo' }]),
+      { f: 'cartao', n: '5', l: 'Cartão' },
+      { f: 'pix', n: '7', l: 'Pix' }
+    ];
+  }
+
+  // Aplica a forma escolhida: zera tudo e (para forma única) joga o total nela.
+  function escolherForma(forma) {
+    venda.formaPg = forma;
+    venda.pagamentos = { dinheiro: 0, pix: 0, cartao: 0, boleto: 0 };
+    if (forma === 'dinheiro' || forma === 'cartao' || forma === 'pix' || forma === 'boleto') {
+      venda.pagamentos[forma] = totalItens();
+    }
+    // 'fiado' e 'distribuir' começam zerados.
+    pintarPagamento();
+  }
+
   function pintarPagamento() {
     const total = totalItens();
+    const avulso = venda.cliente_id === 'AVULSO';
+    const forma = venda.formaPg;
+    const formas = formasPagamento(avulso);
+
+    // Área de detalhe conforme a forma escolhida.
+    let detalhe = '';
+    if (forma === 'distribuir') {
+      detalhe = `
+        <div class="pg-grid">
+          ${MOD_ORDEM.map((m) => `
+            <label class="campo"><span>${MOD_LABEL[m]}</span>
+              <input class="input pg-input" data-mod="${m}" type="number" step="0.01" min="0" inputmode="decimal"
+                value="${venda.pagamentos[m] || ''}" placeholder="0,00"/></label>`).join('')}
+        </div>
+        <label class="campo" id="boleto-venc-wrap" style="${venda.pagamentos.boleto > 0 ? '' : 'display:none'}">
+          <span>Vencimento do boleto</span>
+          <input id="boleto-venc" class="input" type="date" value="${venda.boletoVenc}"/>
+        </label>`;
+    } else if (forma === 'fiado') {
+      detalhe = `<div class="pg-escolhido">Tudo fiado — vira saldo do cliente: <strong>${UI().money(total)}</strong></div>`;
+    } else if (forma === 'boleto') {
+      detalhe = `<div class="pg-escolhido">Tudo em Boleto: <strong>${UI().money(total)}</strong></div>
+        <label class="campo" style="max-width:220px"><span>Vencimento do boleto</span>
+          <input id="boleto-venc" class="input" type="date" value="${venda.boletoVenc}"/></label>`;
+    } else if (forma === 'dinheiro' || forma === 'cartao' || forma === 'pix') {
+      detalhe = `<div class="pg-escolhido">Tudo em ${MOD_LABEL[forma]}: <strong>${UI().money(total)}</strong></div>`;
+    } else {
+      detalhe = `<p class="muted" style="margin:4px 0 0">Escolha a forma de pagamento — <strong>tecle o número</strong>.</p>`;
+    }
+
     main.innerHTML = `
       <div class="fluxo">
         <div class="fluxo-head">
@@ -425,43 +510,67 @@
         </div>
         <section class="card bloco">
           <div class="pg-total">Total da venda: <strong>${UI().money(total)}</strong></div>
-          <p class="muted" style="margin-top:0">Distribua livremente entre as formas. O que não for pago vira <strong>parcial em aberto</strong> (saldo do cliente).</p>
-          <div class="pg-grid">
-            ${MOD_ORDEM.map((m) => `
-              <label class="campo"><span>${MOD_LABEL[m]}</span>
-                <input class="input pg-input" data-mod="${m}" type="number" step="0.01" min="0" inputmode="decimal"
-                  value="${venda.pagamentos[m] || ''}" placeholder="0,00"/></label>`).join('')}
+          <div class="pg-formas">
+            ${formas.map((o) => `<button class="pg-forma${forma === o.f ? ' ativa' : ''}" data-forma="${o.f}"><kbd>${o.n}</kbd> ${o.l}</button>`).join('')}
           </div>
-          <label class="campo" id="boleto-venc-wrap" style="${venda.pagamentos.boleto > 0 ? '' : 'display:none'}">
-            <span>Vencimento do boleto</span>
-            <input id="boleto-venc" class="input" type="date" value="${venda.boletoVenc}"/>
-          </label>
+          <div id="pg-detalhe" class="pg-detalhe">${detalhe}</div>
           <div class="pg-resumo">
             <div class="cp-row"><span>Pago</span><span id="pg-pago">${UI().money(0)}</span></div>
             <div class="cp-row pg-aberto-row"><span id="pg-aberto-lbl">Parcial em aberto</span><span id="pg-aberto">${UI().money(total)}</span></div>
           </div>
           <p class="aviso pg-excedente-aviso" id="pg-excedente" style="display:none">Pagamento maior que o total da venda. Tire o excedente (troco) ou ajuste o total antes de confirmar.</p>
-          ${venda.cliente_id === 'AVULSO' ? '<p class="aviso">Venda avulsa: o parcial em aberto não é registrado como saldo (sem cliente).</p>' : ''}
+          ${avulso ? '<p class="aviso">Venda avulsa: o parcial em aberto não é registrado como saldo (sem cliente).</p>' : ''}
         </section>
         <div class="fluxo-rodape">
-          <button id="voltar" class="btn btn-ghost btn-grande">← Voltar</button>
-          <button id="confirmar" class="btn btn-primary btn-grande">${venda.editId ? '✓ Salvar alterações' : 'Confirmar venda'}</button>
+          <button id="voltar" class="btn btn-ghost btn-grande">← Voltar <kbd>Esc</kbd></button>
+          <button id="confirmar" class="btn btn-primary btn-grande">${venda.editId ? '✓ Salvar alterações' : 'Confirmar venda'} <kbd>Enter</kbd></button>
         </div>
       </div>`;
 
-    main.querySelectorAll('.pg-input').forEach((inp) => inp.oninput = () => {
-      const m = inp.dataset.mod;
-      venda.pagamentos[m] = parseFloat(inp.value) || 0;
-      if (m === 'boleto') {
-        main.querySelector('#boleto-venc-wrap').style.display = venda.pagamentos.boleto > 0 ? '' : 'none';
-      }
-      atualizarResumoPagamento();
+    // Botões de forma (clique)
+    main.querySelectorAll('.pg-forma').forEach((b) => b.onclick = () => escolherForma(b.dataset.forma));
+
+    // Campos do modo "distribuir"
+    main.querySelectorAll('.pg-input').forEach((inp) => {
+      inp.oninput = () => {
+        const m = inp.dataset.mod;
+        venda.pagamentos[m] = parseFloat(inp.value) || 0;
+        const w = main.querySelector('#boleto-venc-wrap');
+        if (m === 'boleto' && w) w.style.display = venda.pagamentos.boleto > 0 ? '' : 'none';
+        atualizarResumoPagamento();
+      };
+      inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmarVenda(); } };
     });
     const venc = main.querySelector('#boleto-venc');
-    if (venc) venc.onchange = (e) => { venda.boletoVenc = e.target.value; };
+    if (venc) {
+      venc.onchange = (e) => { venda.boletoVenc = e.target.value; };
+      venc.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmarVenda(); } };
+    }
+
     main.querySelector('#voltar').onclick = () => { venda.step = 'montar'; pintar(); };
     main.querySelector('#confirmar').onclick = confirmarVenda;
+
+    // Atalhos do passo de pagamento: número escolhe a forma; Esc volta.
+    // (Ignora números quando o foco está num campo de valor — modo distribuir.)
+    main.querySelector('.fluxo').onkeydown = (e) => {
+      const ae = document.activeElement;
+      const digitando = ae && (ae.classList.contains('pg-input') || ae.type === 'date');
+      if (e.key === 'Escape') { venda.step = 'montar'; pintar(); return; }
+      if (!digitando && '1234570'.includes(e.key) && e.key !== '0') {
+        const o = formas.find((x) => x.n === e.key);
+        if (o) { e.preventDefault(); escolherForma(o.f); }
+      }
+    };
+
     atualizarResumoPagamento();
+
+    // Foco conforme a forma escolhida.
+    setTimeout(() => {
+      if (forma === 'distribuir') { const d = main.querySelector('.pg-input[data-mod="dinheiro"]'); if (d) d.focus(); }
+      else if (forma === 'boleto') { if (venc) venc.focus(); }
+      else if (forma) { const c = main.querySelector('#confirmar'); if (c) c.focus(); }
+      else { const b = main.querySelector('.pg-forma'); if (b) b.focus(); }
+    }, 30);
   }
 
   function atualizarResumoPagamento() {
@@ -486,17 +595,18 @@
 
   // ---- Gravação ------------------------------------------------------
   async function confirmarVenda() {
+    if (gravando) return;                 // anti-duplo-envio (Enter pode disparar)
     const btn = main.querySelector('#confirmar');
-    btn.disabled = true;
     const db = UI().db();
     const editando = !!venda.editId;
-    if (editando && !AGB.isDono()) { UI().toast('Sem permissão para editar pedidos.', 'erro'); btn.disabled = false; return; }
+    if (editando && !AGB.isDono()) { UI().toast('Sem permissão para editar pedidos.', 'erro'); return; }
     // Trava: pago não pode ser maior que o total (evita troco contado como caixa).
     if (totalPago() - totalItens() > 0.005) {
       UI().toast(`O pagamento (${UI().money(totalPago())}) é maior que o total (${UI().money(totalItens())}). Ajuste antes de salvar.`, 'erro');
-      btn.disabled = false;
       return;
     }
+    gravando = true;
+    if (btn) btn.disabled = true;
     try {
       const cliente_id = venda.cliente_id === 'AVULSO' ? null : venda.cliente_id;
       const itens = venda.itens.map((i) => ({
@@ -534,7 +644,9 @@
       pintar();
     } catch (err) {
       UI().erro('Não foi possível gravar a venda', err);
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
+    } finally {
+      gravando = false;
     }
   }
 
@@ -557,13 +669,14 @@
             ${r.saldo != null ? `<div class="cp-row cp-saldo"><span>Saldo devedor atualizado</span><span>${saldoBadge(r.saldo)}</span></div>` : ''}
           </div>
           <div class="ok-acoes">
-            <button id="imprimir" class="btn btn-primary btn-grande">🖨 Imprimir cupom</button>
-            <button id="nova" class="btn btn-ghost btn-grande">Nova venda</button>
+            <button id="imprimir" class="btn btn-primary btn-grande">🖨 Imprimir cupom <kbd>Enter</kbd></button>
+            <button id="nova" class="btn btn-ghost btn-grande">Nova venda <kbd>F2</kbd></button>
           </div>
         </div>
       </div>`;
     main.querySelector('#imprimir').onclick = () => AGB.cupom.imprimir(dadosCupom());
     main.querySelector('#nova').onclick = () => { novaVenda(); pintar(); };
+    setTimeout(() => { const b = main.querySelector('#imprimir'); if (b) b.focus(); }, 30);
   }
 
   function dadosCupom() {

@@ -17,11 +17,14 @@
   const MOD_ORDEM = ['dinheiro', 'pix', 'cartao', 'boleto'];
   const MOD_LABEL = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', boleto: 'Boleto' };
 
+  const COMP_KEY = 'agb_comprador'; // lembra o último comprador (vendedor) da sessão
+
   let main = null;
   let cache = { vendedores: [], fornecedores: [], produtos: [] };
   let compra = null;
   let cbFornecedor = null;
   let cbProduto = null;
+  let gravando = false;  // trava anti-duplo-envio
 
   // Texto curto de saldo (para o subtítulo do combobox de fornecedor)
   function saldoTexto(v) {
@@ -35,10 +38,11 @@
       step: 'montar',
       editId: null,
       editNumero: null,
-      vendedor_id: '',
+      vendedor_id: sessionStorage.getItem(COMP_KEY) || '',  // lembra o comprador
       fornecedor_id: '',
       itens: [],
       observacao: '',
+      formaPg: '',
       pagamentos: { dinheiro: 0, pix: 0, cartao: 0, boleto: 0 },
       boletoVenc: '',
       resultado: null
@@ -66,6 +70,10 @@
         return;
       }
       cache = { vendedores: v.data || [], fornecedores: f.data || [], produtos: p.data || [], carregado: true };
+    }
+    if (compra.vendedor_id && !cache.vendedores.some((v) => v.id === compra.vendedor_id)) {
+      compra.vendedor_id = '';
+      sessionStorage.removeItem(COMP_KEY);
     }
     pintar();
   }
@@ -109,7 +117,7 @@
               <div id="cb-fornecedor"></div>
             </label>
           </div>
-          ${forn ? `<div class="saldo-inline">Saldo em aberto atual: ${saldoBadge(forn.saldo_aberto)}</div>` : ''}
+          <div class="saldo-inline" id="saldo-inline">${forn ? `Saldo em aberto atual: ${saldoBadge(forn.saldo_aberto)}` : ''}</div>
           ${cache.fornecedores.length ? '' : '<p class="aviso">Nenhum fornecedor cadastrado. Cadastre em <strong>Cadastros → Fornecedores</strong>.</p>'}
         </section>
 
@@ -132,17 +140,29 @@
 
         <div class="fluxo-rodape">
           <div class="rodape-total">Total: <strong>${UI().money(totalItens())}</strong></div>
-          <button id="ir-pagamento" class="btn btn-primary btn-grande">Pagamento →</button>
+          <button id="ir-pagamento" class="btn btn-primary btn-grande">Pagamento → <kbd>Enter</kbd></button>
         </div>
       </div>`;
 
-    main.querySelector('#sel-vendedor').onchange = (e) => { compra.vendedor_id = e.target.value; };
+    const selVend = main.querySelector('#sel-vendedor');
+    selVend.onchange = (e) => {
+      compra.vendedor_id = e.target.value;
+      if (compra.vendedor_id) sessionStorage.setItem(COMP_KEY, compra.vendedor_id);
+      else sessionStorage.removeItem(COMP_KEY);
+    };
+    selVend.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); cbFornecedor && cbFornecedor.focus(); } };
 
     cbFornecedor = UI().combobox(main.querySelector('#cb-fornecedor'), {
       placeholder: 'Buscar fornecedor...',
       value: compra.fornecedor_id,
       items: cache.fornecedores.map((f) => ({ id: f.id, label: f.nome, sub: saldoTexto(f.saldo_aberto) })),
-      onChange: (id) => { compra.fornecedor_id = id; pintarMontar(); }
+      onChange: (id) => {
+        compra.fornecedor_id = id;
+        const sl = main.querySelector('#saldo-inline');
+        const f = fornecedorAtual();
+        if (sl) sl.innerHTML = f ? 'Saldo em aberto atual: ' + saldoBadge(f.saldo_aberto) : '';
+        if (cbProduto) cbProduto.focus();
+      }
     });
 
     cbProduto = UI().combobox(main.querySelector('#cb-produto'), {
@@ -151,7 +171,8 @@
         id: p.id, label: p.nome, sub: p.unidade, code: p.codigo
       })),
       // Ao escolher o produto, pula direto para a quantidade (agiliza a compra).
-      onChange: () => { const q = main.querySelector('#it-qtd'); if (q) q.focus(); }
+      onChange: () => { const q = main.querySelector('#it-qtd'); if (q) q.focus(); },
+      onEnterEmpty: irParaPagamento
     });
 
     main.querySelector('#it-add').onclick = adicionarItem;
@@ -167,6 +188,12 @@
     if (btnExcluirEdit) btnExcluirEdit.onclick = () => excluirCompra(compra.editId, compra.editNumero, null);
     renderItens();
     if (window.AGB && AGB.refreshIcons) AGB.refreshIcons();
+
+    setTimeout(() => {
+      if (!compra.vendedor_id) selVend.focus();
+      else if (!compra.fornecedor_id && cbFornecedor) cbFornecedor.focus();
+      else if (cbProduto) cbProduto.focus();
+    }, 30);
   }
 
   // ---- Busca / edição / reimpressão ---------------------------------
@@ -376,8 +403,57 @@
   }
 
   // ===================== PASSO 2: PAGAMENTO ==========================
+  // Formas com atalho por número. Compra sempre tem fornecedor → opção 4 sempre disponível.
+  function formasPagamento() {
+    return [
+      { f: 'dinheiro', n: '1', l: 'Dinheiro' },
+      { f: 'distribuir', n: '2', l: 'Distribuir entre formas' },
+      { f: 'boleto', n: '3', l: 'Boleto' },
+      { f: 'fiado', n: '4', l: 'Fiado / saldo' },
+      { f: 'cartao', n: '5', l: 'Cartão' },
+      { f: 'pix', n: '7', l: 'Pix' }
+    ];
+  }
+
+  function escolherForma(forma) {
+    compra.formaPg = forma;
+    compra.pagamentos = { dinheiro: 0, pix: 0, cartao: 0, boleto: 0 };
+    if (forma === 'dinheiro' || forma === 'cartao' || forma === 'pix' || forma === 'boleto') {
+      compra.pagamentos[forma] = totalItens();
+    }
+    pintarPagamento();
+  }
+
   function pintarPagamento() {
     const total = totalItens();
+    const forma = compra.formaPg;
+    const formas = formasPagamento();
+
+    let detalhe = '';
+    if (forma === 'distribuir') {
+      detalhe = `
+        <div class="pg-grid">
+          ${MOD_ORDEM.map((m) => `
+            <label class="campo"><span>${MOD_LABEL[m]}</span>
+              <input class="input pg-input" data-mod="${m}" type="number" step="0.01" min="0" inputmode="decimal"
+                value="${compra.pagamentos[m] || ''}" placeholder="0,00"/></label>`).join('')}
+        </div>
+        <label class="campo" id="boleto-venc-wrap" style="${compra.pagamentos.boleto > 0 ? '' : 'display:none'}">
+          <span>Vencimento do boleto</span>
+          <input id="boleto-venc" class="input" type="date" value="${compra.boletoVenc}"/>
+        </label>`;
+    } else if (forma === 'fiado') {
+      detalhe = `<div class="pg-escolhido">Tudo em aberto — vira saldo com o fornecedor: <strong>${UI().money(total)}</strong></div>`;
+    } else if (forma === 'boleto') {
+      detalhe = `<div class="pg-escolhido">Tudo em Boleto: <strong>${UI().money(total)}</strong></div>
+        <label class="campo" style="max-width:220px"><span>Vencimento do boleto</span>
+          <input id="boleto-venc" class="input" type="date" value="${compra.boletoVenc}"/></label>`;
+    } else if (forma === 'dinheiro' || forma === 'cartao' || forma === 'pix') {
+      detalhe = `<div class="pg-escolhido">Tudo em ${MOD_LABEL[forma]}: <strong>${UI().money(total)}</strong></div>`;
+    } else {
+      detalhe = `<p class="muted" style="margin:4px 0 0">Escolha a forma de pagamento — <strong>tecle o número</strong>.</p>`;
+    }
+
     main.innerHTML = `
       <div class="fluxo">
         <div class="fluxo-head">
@@ -386,17 +462,10 @@
         </div>
         <section class="card bloco">
           <div class="pg-total">Total da compra: <strong>${UI().money(total)}</strong></div>
-          <p class="muted" style="margin-top:0">Distribua livremente entre as formas. O que não for pago vira <strong>parcial em aberto</strong> (saldo com o fornecedor).</p>
-          <div class="pg-grid">
-            ${MOD_ORDEM.map((m) => `
-              <label class="campo"><span>${MOD_LABEL[m]}</span>
-                <input class="input pg-input" data-mod="${m}" type="number" step="0.01" min="0" inputmode="decimal"
-                  value="${compra.pagamentos[m] || ''}" placeholder="0,00"/></label>`).join('')}
+          <div class="pg-formas">
+            ${formas.map((o) => `<button class="pg-forma${forma === o.f ? ' ativa' : ''}" data-forma="${o.f}"><kbd>${o.n}</kbd> ${o.l}</button>`).join('')}
           </div>
-          <label class="campo" id="boleto-venc-wrap" style="${compra.pagamentos.boleto > 0 ? '' : 'display:none'}">
-            <span>Vencimento do boleto</span>
-            <input id="boleto-venc" class="input" type="date" value="${compra.boletoVenc}"/>
-          </label>
+          <div id="pg-detalhe" class="pg-detalhe">${detalhe}</div>
           <div class="pg-resumo">
             <div class="cp-row"><span>Pago</span><span id="pg-pago">${UI().money(0)}</span></div>
             <div class="cp-row pg-aberto-row"><span id="pg-aberto-lbl">Parcial em aberto</span><span id="pg-aberto">${UI().money(total)}</span></div>
@@ -404,24 +473,50 @@
           <p class="aviso pg-excedente-aviso" id="pg-excedente" style="display:none">Pagamento maior que o total da compra. Tire o excedente ou ajuste o total antes de confirmar.</p>
         </section>
         <div class="fluxo-rodape">
-          <button id="voltar" class="btn btn-ghost btn-grande">← Voltar</button>
-          <button id="confirmar" class="btn btn-primary btn-grande">${compra.editId ? '✓ Salvar alterações' : 'Confirmar compra'}</button>
+          <button id="voltar" class="btn btn-ghost btn-grande">← Voltar <kbd>Esc</kbd></button>
+          <button id="confirmar" class="btn btn-primary btn-grande">${compra.editId ? '✓ Salvar alterações' : 'Confirmar compra'} <kbd>Enter</kbd></button>
         </div>
       </div>`;
 
-    main.querySelectorAll('.pg-input').forEach((inp) => inp.oninput = () => {
-      const m = inp.dataset.mod;
-      compra.pagamentos[m] = parseFloat(inp.value) || 0;
-      if (m === 'boleto') {
-        main.querySelector('#boleto-venc-wrap').style.display = compra.pagamentos.boleto > 0 ? '' : 'none';
-      }
-      atualizarResumoPagamento();
+    main.querySelectorAll('.pg-forma').forEach((b) => b.onclick = () => escolherForma(b.dataset.forma));
+
+    main.querySelectorAll('.pg-input').forEach((inp) => {
+      inp.oninput = () => {
+        const m = inp.dataset.mod;
+        compra.pagamentos[m] = parseFloat(inp.value) || 0;
+        const w = main.querySelector('#boleto-venc-wrap');
+        if (m === 'boleto' && w) w.style.display = compra.pagamentos.boleto > 0 ? '' : 'none';
+        atualizarResumoPagamento();
+      };
+      inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmarCompra(); } };
     });
     const venc = main.querySelector('#boleto-venc');
-    if (venc) venc.onchange = (e) => { compra.boletoVenc = e.target.value; };
+    if (venc) {
+      venc.onchange = (e) => { compra.boletoVenc = e.target.value; };
+      venc.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmarCompra(); } };
+    }
+
     main.querySelector('#voltar').onclick = () => { compra.step = 'montar'; pintar(); };
     main.querySelector('#confirmar').onclick = confirmarCompra;
+
+    main.querySelector('.fluxo').onkeydown = (e) => {
+      const ae = document.activeElement;
+      const digitando = ae && (ae.classList.contains('pg-input') || ae.type === 'date');
+      if (e.key === 'Escape') { compra.step = 'montar'; pintar(); return; }
+      if (!digitando && '1234570'.includes(e.key) && e.key !== '0') {
+        const o = formas.find((x) => x.n === e.key);
+        if (o) { e.preventDefault(); escolherForma(o.f); }
+      }
+    };
+
     atualizarResumoPagamento();
+
+    setTimeout(() => {
+      if (forma === 'distribuir') { const d = main.querySelector('.pg-input[data-mod="dinheiro"]'); if (d) d.focus(); }
+      else if (forma === 'boleto') { if (venc) venc.focus(); }
+      else if (forma) { const c = main.querySelector('#confirmar'); if (c) c.focus(); }
+      else { const b = main.querySelector('.pg-forma'); if (b) b.focus(); }
+    }, 30);
   }
 
   function atualizarResumoPagamento() {
@@ -444,16 +539,17 @@
 
   // ---- Gravação ------------------------------------------------------
   async function confirmarCompra() {
+    if (gravando) return;                 // anti-duplo-envio
     const btn = main.querySelector('#confirmar');
-    btn.disabled = true;
     const db = UI().db();
     const editando = !!compra.editId;
     // Trava: pago não pode ser maior que o total da compra.
     if (totalPago() - totalItens() > 0.005) {
       UI().toast(`O pagamento (${UI().money(totalPago())}) é maior que o total (${UI().money(totalItens())}). Ajuste antes de salvar.`, 'erro');
-      btn.disabled = false;
       return;
     }
+    gravando = true;
+    if (btn) btn.disabled = true;
     try {
       const itens = compra.itens.map((i) => ({
         produto_id: i.produto_id, quantidade: i.quantidade, preco_unit: i.preco_unit,
@@ -489,7 +585,9 @@
       pintar();
     } catch (err) {
       UI().erro('Não foi possível gravar a compra', err);
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
+    } finally {
+      gravando = false;
     }
   }
 
@@ -512,13 +610,14 @@
             ${r.saldo != null ? `<div class="cp-row cp-saldo"><span>Saldo em aberto atualizado</span><span>${saldoBadge(r.saldo)}</span></div>` : ''}
           </div>
           <div class="ok-acoes">
-            <button id="imprimir" class="btn btn-primary btn-grande">🖨 Imprimir cupom</button>
+            <button id="imprimir" class="btn btn-primary btn-grande">🖨 Imprimir cupom <kbd>Enter</kbd></button>
             <button id="nova" class="btn btn-ghost btn-grande">Nova compra</button>
           </div>
         </div>
       </div>`;
     main.querySelector('#imprimir').onclick = () => AGB.cupom.imprimir(dadosCupom());
     main.querySelector('#nova').onclick = () => { novaCompra(); pintar(); };
+    setTimeout(() => { const b = main.querySelector('#imprimir'); if (b) b.focus(); }, 30);
   }
 
   function dadosCupom() {

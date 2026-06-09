@@ -147,7 +147,10 @@
         // Código exato + Enter seleciona direto (atalho rápido / leitor de código).
         const ex = exactCode(input.value);
         if (ex) { e.preventDefault(); pickItem(ex); return; }
-        if (!list.hidden && (activeIdx >= 0 || filtered.length === 1)) { e.preventDefault(); pick(activeIdx >= 0 ? activeIdx : 0); }
+        if (!list.hidden && (activeIdx >= 0 || filtered.length === 1)) { e.preventDefault(); pick(activeIdx >= 0 ? activeIdx : 0); return; }
+        // Campo vazio, sem nada para selecionar: deixa o consumidor "avançar"
+        // (ex.: ir para o pagamento ao pressionar Enter no produto vazio).
+        if (!input.value.trim() && !selectedId && opts.onEnterEmpty) { e.preventDefault(); close(); opts.onEnterEmpty(); }
       } else if (e.key === 'Escape') { close(); }
     });
 

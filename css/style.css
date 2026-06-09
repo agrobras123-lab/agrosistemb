@@ -593,6 +593,24 @@ textarea { resize: vertical; }
 
 .pg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 .pg-total { font-size: 1.05rem; margin-bottom: 4px; }
+
+/* Seletor de forma de pagamento por número */
+.pg-formas { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.pg-forma {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  border: 1px solid var(--cinza-borda); background: #fff; border-radius: 10px;
+  padding: 10px 14px; font-size: .95rem; font-weight: 600; color: var(--texto);
+  transition: background .12s, border-color .12s;
+}
+.pg-forma:hover { background: var(--verde-bg); border-color: var(--verde-claro); }
+.pg-forma.ativa { background: var(--verde-bg); border-color: var(--verde); color: var(--verde); }
+.pg-forma kbd {
+  font-family: inherit; font-size: .8rem; font-weight: 800; background: var(--verde); color: #fff;
+  border-radius: 6px; padding: 1px 8px; min-width: 20px; text-align: center;
+}
+.pg-forma:focus-visible { outline: 3px solid var(--verde-claro); outline-offset: 2px; }
+.pg-detalhe { margin-top: 6px; }
+.pg-escolhido { font-size: 1rem; padding: 8px 0; }
 .pg-resumo { margin-top: 14px; border-top: 1px solid var(--cinza-borda); padding-top: 12px; }
 .pg-resumo .cp-row { padding: 5px 0; }
 .pg-aberto-row { font-weight: 700; }
