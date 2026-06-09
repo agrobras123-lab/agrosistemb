@@ -82,7 +82,10 @@
     const cliente = clienteAtual();
     main.innerHTML = `
       <div class="fluxo">
-        ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-outline-verde btn-buscar-edit">🔍 Buscar / editar venda existente</button>` : ''}
+        <div class="acoes-topo">
+          ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-outline-verde btn-acao-topo">🔍 Buscar / editar venda <kbd>F3</kbd></button>` : ''}
+          <button id="btn-reimprimir" class="btn btn-outline-verde btn-acao-topo">🖨 Reimprimir cupom <kbd>F7</kbd></button>
+        </div>
         ${venda.editId ? `<div class="fluxo-top">
           <span class="edit-flag">✎ Editando venda nº ${venda.editNumero}</span>
           <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>
@@ -159,7 +162,9 @@
     main.querySelector('#obs').oninput = (e) => { venda.observacao = e.target.value; };
     main.querySelector('#ir-pagamento').onclick = irParaPagamento;
     const btnBuscar = main.querySelector('#btn-buscar');
-    if (btnBuscar) btnBuscar.onclick = abrirBusca;
+    if (btnBuscar) btnBuscar.onclick = () => abrirBusca('editar');
+    const btnReimp = main.querySelector('#btn-reimprimir');
+    if (btnReimp) btnReimp.onclick = () => abrirBusca('reimprimir');
     main.querySelector('#btn-novo-cliente').onclick = abrirNovoCliente;
     const cancEdit = main.querySelector('#btn-cancelar-edit');
     if (cancEdit) cancEdit.onclick = () => { novaVenda(); pintar(); };
@@ -168,10 +173,14 @@
     renderItens();
   }
 
-  // ---- Busca / edição -----------------------------------------------
-  function abrirBusca() {
+  // ---- Busca / edição / reimpressão ---------------------------------
+  // modo: 'editar' (padrão) abre o pedido para edição e mostra botão excluir.
+  //       'reimprimir' apenas reimprime o cupom do pedido escolhido.
+  function abrirBusca(modo) {
+    modo = modo || 'editar';
+    const reimpr = modo === 'reimprimir';
     const m = UI().openModal({
-      titulo: 'Buscar venda', largura: '520px',
+      titulo: reimpr ? 'Reimprimir cupom de venda' : 'Buscar venda', largura: '520px',
       corpo: `
         <div class="busca-bar">
           <input id="busca-input" class="input" type="text" placeholder="Nº do pedido ou nome do cliente" />
@@ -180,14 +189,16 @@
         <div id="busca-result" class="busca-result"><div class="muted">Buscando recentes...</div></div>`
     });
     const input = m.body.querySelector('#busca-input');
-    const fazer = () => buscar(m, input.value.trim());
+    const fazer = () => buscar(m, input.value.trim(), modo);
     m.body.querySelector('#busca-btn').onclick = fazer;
     input.onkeydown = (e) => { if (e.key === 'Enter') fazer(); };
     setTimeout(() => input.focus(), 50);
-    buscar(m, ''); // recentes
+    buscar(m, '', modo); // recentes
   }
 
-  async function buscar(m, termo) {
+  async function buscar(m, termo, modo) {
+    modo = modo || 'editar';
+    const reimpr = modo === 'reimprimir';
     const db = UI().db();
     const box = m.body.querySelector('#busca-result');
     box.innerHTML = '<div class="muted">Buscando...</div>';
@@ -208,13 +219,52 @@
     box.innerHTML = data.map((p) => `
       <div class="busca-row">
         <button class="busca-item" data-id="${p.id}">
-          <span>✏️ <strong>Nº ${p.numero}</strong> · ${UI().dataCurta(p.data)} · ${UI().esc((p.clientes && p.clientes.nome) || 'Avulso')}</span>
+          <span>${reimpr ? '🖨' : '✏️'} <strong>Nº ${p.numero}</strong> · ${UI().dataCurta(p.data)} · ${UI().esc((p.clientes && p.clientes.nome) || 'Avulso')}</span>
           <span>${UI().money(p.total)}</span>
         </button>
-        <button class="busca-excluir" data-id="${p.id}" data-num="${p.numero}" title="Excluir venda">🗑</button>
+        ${reimpr ? '' : `<button class="busca-excluir" data-id="${p.id}" data-num="${p.numero}" title="Excluir venda">🗑</button>`}
       </div>`).join('');
-    box.querySelectorAll('.busca-item').forEach((b) => b.onclick = () => { m.close(); carregarEdicao(b.dataset.id); });
-    box.querySelectorAll('.busca-excluir').forEach((b) => b.onclick = () => excluirVenda(b.dataset.id, b.dataset.num, m));
+    box.querySelectorAll('.busca-item').forEach((b) => b.onclick = () => {
+      m.close();
+      if (reimpr) reimprimirPedido(b.dataset.id);
+      else carregarEdicao(b.dataset.id);
+    });
+    if (!reimpr) box.querySelectorAll('.busca-excluir').forEach((b) => b.onclick = () => excluirVenda(b.dataset.id, b.dataset.num, m));
+  }
+
+  // Reconstrói os dados do cupom a partir do banco e reimprime.
+  async function reimprimirPedido(id) {
+    const db = UI().db();
+    UI().toast('Preparando cupom...');
+    try {
+      const { data: ped, error } = await db.from('pedidos_venda')
+        .select('id,numero,data,total,observacao,cliente_id,clientes(nome,saldo_devedor),vendedores(nome)')
+        .eq('id', id).single();
+      if (error) throw error;
+      const { data: itens } = await db.from('itens_venda')
+        .select('quantidade,preco_unit,valor,produtos(nome,unidade)').eq('pedido_id', id);
+      const { data: pags } = await db.from('pagamentos_venda')
+        .select('modalidade,valor,vencimento').eq('pedido_id', id);
+      const pago = (pags || []).reduce((s, p) => s + Number(p.valor), 0);
+      AGB.cupom.imprimir({
+        tipo: 'VENDA',
+        numero: ped.numero, data: ped.data,
+        contraparteLabel: 'Cliente',
+        contraparteNome: ped.clientes ? ped.clientes.nome : 'Avulso',
+        vendedor: ped.vendedores ? ped.vendedores.nome : '',
+        itens: (itens || []).map((i) => ({
+          descricao: i.produtos ? i.produtos.nome : '(produto removido)',
+          unidade: i.produtos ? i.produtos.unidade : '',
+          quantidade: Number(i.quantidade), preco_unit: Number(i.preco_unit), valor: Number(i.valor)
+        })),
+        total: Number(ped.total),
+        pagamentos: (pags || []).map((p) => ({ modalidade: p.modalidade, valor: Number(p.valor), vencimento: p.vencimento })),
+        emAberto: arred(Number(ped.total) - pago),
+        saldoLabel: 'Saldo devedor',
+        saldo: ped.cliente_id && ped.clientes ? Number(ped.clientes.saldo_devedor) : null,
+        observacao: ped.observacao
+      });
+    } catch (err) { UI().erro('Não foi possível reimprimir o cupom', err); }
   }
 
   async function carregarEdicao(id) {
@@ -559,6 +609,17 @@
   window.addEventListener('hashchange', () => {
     if ((location.hash || '').includes('vendas')) cache.carregado = false;
   });
+
+  // API pública p/ atalhos de teclado (F2 nova, F3 editar, F7 reimprimir).
+  window.AGB.vendas = {
+    nova: function () {
+      novaVenda();
+      if ((location.hash || '').includes('vendas')) pintar();
+      else location.hash = '#/vendas';
+    },
+    busca: () => abrirBusca('editar'),
+    reimprimir: () => abrirBusca('reimprimir')
+  };
 
   window.AGB.registerView('vendas', render);
 })();

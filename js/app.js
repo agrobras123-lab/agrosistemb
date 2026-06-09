@@ -126,6 +126,28 @@
     if (window.AGB && AGB.exportarBackup) AGB.exportarBackup(sbBackup);
   });
 
+  // ---- Atalhos de teclado --------------------------------------------
+  // F2 → nova venda (ou nova compra se estiver na aba Compras)
+  // F3 → buscar/editar (venda na aba Vendas; compra na aba Compras)
+  // F7 → reimprimir cupom (venda/compra conforme a aba)
+  window.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (!window.AGB || !AGB.isUnlocked || !AGB.isUnlocked()) return;
+    const r = currentRoute();
+    const dono = ehDono();
+    if (e.key === 'F2') {
+      e.preventDefault();
+      if (r === 'compras' && dono) { if (AGB.compras) AGB.compras.nova(); }
+      else if (AGB.vendas) AGB.vendas.nova();
+    } else if (e.key === 'F3') {
+      if (r === 'vendas' && dono) { e.preventDefault(); if (AGB.vendas) AGB.vendas.busca(); }
+      else if (r === 'compras' && dono) { e.preventDefault(); if (AGB.compras) AGB.compras.busca(); }
+    } else if (e.key === 'F7') {
+      if (r === 'vendas') { e.preventDefault(); if (AGB.vendas) AGB.vendas.reimprimir(); }
+      else if (r === 'compras' && dono) { e.preventDefault(); if (AGB.compras) AGB.compras.reimprimir(); }
+    }
+  });
+
   // ---- Eventos -------------------------------------------------------
   window.addEventListener('hashchange', render);
   window.addEventListener('agb:unlocked', () => {
