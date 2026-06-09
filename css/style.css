@@ -576,6 +576,8 @@ textarea { resize: vertical; }
 .input-sm-qtd { width: 72px !important; }
 .input-sm-preco { width: 96px !important; }
 .item-edit-inputs span { color: var(--cinza-texto); font-size: .9rem; }
+.btn-edit-item { color: var(--verde) !important; border: 1px solid var(--verde) !important; border-radius: 7px; font-size: .78rem !important; padding: 4px 9px !important; white-space: nowrap; }
+.btn-edit-item:hover { background: var(--verde-bg) !important; }
 
 .pg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 .pg-total { font-size: 1.05rem; margin-bottom: 4px; }

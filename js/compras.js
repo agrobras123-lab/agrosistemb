@@ -274,7 +274,7 @@
           <div class="item-sub">${UI().qtd(i.quantidade)} ${UI().esc(i.unidade)} × ${UI().money(i.preco_unit)}</div>
         </div>
         <div class="item-valor">${UI().money(arred(i.quantidade * i.preco_unit))}</div>
-        <button class="btn btn-sm btn-ghost" data-edit="${idx}" title="Editar item">✏️</button>
+        <button class="btn btn-sm btn-ghost btn-edit-item" data-edit="${idx}">✏️ Editar</button>
         <button class="btn btn-sm btn-ghost btn-del" data-rm="${idx}">✕</button>
       </div>`).join('');
     box.querySelectorAll('[data-rm]').forEach((b) => b.onclick = () => {
