@@ -405,6 +405,7 @@ body.locked { overflow: hidden; }
 .btn-del { color: var(--danger); }
 .btn-outline-verde { background: #fff; color: var(--verde); border: 2px solid var(--verde); font-weight: 600; }
 .btn-outline-verde:hover { background: var(--verde-bg); }
+.btn-buscar-edit { width: 100%; justify-content: center; padding: 13px 16px; font-size: 1rem; margin-bottom: 14px; background: var(--verde-bg); }
 
 /* ---- Inputs -------------------------------------------------------- */
 .input, textarea {

@@ -82,12 +82,12 @@
     const cliente = clienteAtual();
     main.innerHTML = `
       <div class="fluxo">
-        <div class="fluxo-top">
-          ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-outline-verde">🔍 Buscar / editar venda</button>` : ''}
-          ${venda.editId ? `<span class="edit-flag">✎ Editando venda nº ${venda.editNumero}</span>
-            <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>
-            <button id="btn-excluir-edit" class="btn btn-sm" style="color:var(--erro);border:1px solid var(--erro)">🗑 Excluir esta venda</button>` : ''}
-        </div>
+        ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-outline-verde btn-buscar-edit">🔍 Buscar / editar venda existente</button>` : ''}
+        ${venda.editId ? `<div class="fluxo-top">
+          <span class="edit-flag">✎ Editando venda nº ${venda.editNumero}</span>
+          <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>
+          <button id="btn-excluir-edit" class="btn btn-sm" style="color:var(--erro);border:1px solid var(--erro)">🗑 Excluir esta venda</button>
+        </div>` : ''}
         <div class="fluxo-head">
           <h2>${venda.editId ? 'Editar venda' : 'Nova venda'}</h2>
           ${etapasHTML(1)}
