@@ -221,21 +221,50 @@
   }
 
   // ---- Excluir -------------------------------------------------------
+  // Mapeamento tabela → tabela de pedidos + coluna FK
+  const PEDIDOS_FK = {
+    clientes:      { tabela: 'pedidos_venda',   coluna: 'cliente_id' },
+    fornecedores:  { tabela: 'pedidos_compra',  coluna: 'fornecedor_id' },
+  };
+
   async function excluir(aba, reg) {
     const ok = await UI().confirm(`Excluir "${reg.nome}"? Esta ação não pode ser desfeita.`,
       { okLabel: 'Excluir', perigo: true });
     if (!ok) return;
+
     const { error } = await UI().db().from(aba.tabela).delete().eq('id', reg.id);
-    if (error) {
-      const fk = error.code === '23503' || (error.message || '').includes('violates foreign key');
-      if (fk) {
-        UI().toast(`"${reg.nome}" não pode ser excluído — possui pedidos vinculados.`, 'erro');
-      } else {
-        UI().erro('Não foi possível excluir', error);
-      }
+    if (!error) { UI().toast('Excluído.'); carregar(); return; }
+
+    const fk = error.code === '23503' || (error.message || '').includes('violates foreign key');
+    if (!fk) { UI().erro('Não foi possível excluir', error); return; }
+
+    // Verificar se há mapeamento de pedidos para este cadastro
+    const mapa = PEDIDOS_FK[aba.tabela];
+    if (!mapa) {
+      UI().toast(`"${reg.nome}" está em uso e não pode ser excluído.`, 'erro');
       return;
     }
-    UI().toast('Excluído.');
+
+    // Contar quantos pedidos serão apagados junto
+    const db = UI().db();
+    const { count } = await db.from(mapa.tabela).select('id', { count: 'exact', head: true }).eq(mapa.coluna, reg.id);
+    const qtd = count || 0;
+
+    const forcar = await UI().confirm(
+      `"${reg.nome}" possui ${qtd} pedido${qtd !== 1 ? 's' : ''} vinculado${qtd !== 1 ? 's' : ''}.\n\nAo confirmar, TODOS os pedidos e pagamentos deste cadastro serão apagados permanentemente. Esta ação não tem volta.`,
+      { okLabel: `Apagar tudo (${qtd} pedido${qtd !== 1 ? 's' : ''})`, perigo: true }
+    );
+    if (!forcar) return;
+
+    // Excluir pedidos (itens e pagamentos cascadeiam no banco)
+    const { error: ePed } = await db.from(mapa.tabela).delete().eq(mapa.coluna, reg.id);
+    if (ePed) { UI().erro('Falha ao apagar pedidos vinculados', ePed); return; }
+
+    // Agora excluir o cadastro
+    const { error: eReg } = await db.from(aba.tabela).delete().eq('id', reg.id);
+    if (eReg) { UI().erro('Pedidos apagados, mas falha ao excluir cadastro', eReg); return; }
+
+    UI().toast(`"${reg.nome}" e ${qtd} pedido${qtd !== 1 ? 's' : ''} excluídos.`);
     carregar();
   }
 
