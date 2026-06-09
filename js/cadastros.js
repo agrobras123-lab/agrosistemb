@@ -227,8 +227,12 @@
     if (!ok) return;
     const { error } = await UI().db().from(aba.tabela).delete().eq('id', reg.id);
     if (error) {
-      // Provável violação de FK (registro usado em pedidos/itens)
-      UI().erro('Não foi possível excluir (pode estar em uso em pedidos)', error);
+      const fk = error.code === '23503' || (error.message || '').includes('violates foreign key');
+      if (fk) {
+        UI().toast(`"${reg.nome}" não pode ser excluído — possui pedidos vinculados.`, 'erro');
+      } else {
+        UI().erro('Não foi possível excluir', error);
+      }
       return;
     }
     UI().toast('Excluído.');
