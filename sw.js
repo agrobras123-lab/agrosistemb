@@ -6,7 +6,7 @@
 // IMPORTANTE: suba este número sempre que alterar QUALQUER arquivo do shell
 // (inclusive js/supabase.js com URL/KEY/PIN), senão o navegador continua
 // servindo a versão antiga em cache.
-const CACHE = 'agrobras-shell-v33';
+const CACHE = 'agrobras-shell-v34';
 
 const SHELL = [
   './',
@@ -51,16 +51,22 @@ self.addEventListener('fetch', (event) => {
   // seguem para a rede sem qualquer cache.
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
 
-  // Navegação: rede primeiro, cai pro shell em cache se a rede falhar.
-  if (req.mode === 'navigate') {
-    event.respondWith(
-      fetch(req).catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
-  // Assets do shell: cache primeiro (são versionados pelo nome do cache).
+  // App ONLINE-ONLY: REDE PRIMEIRO para TUDO (inclusive o shell). Assim o
+  // navegador sempre pega o código mais novo assim que a página recarrega,
+  // sem precisar trocar a versão do cache nem dar "hard refresh". O cache só
+  // entra como reserva quando a rede falha (offline / queda de sinal).
   event.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req))
+    fetch(req)
+      .then((resp) => {
+        // Guarda uma cópia fresca para servir de reserva se cair a rede.
+        if (resp && resp.ok) {
+          const copia = resp.clone();
+          caches.open(CACHE).then((c) => c.put(req, copia)).catch(() => {});
+        }
+        return resp;
+      })
+      .catch(() => caches.match(req).then((cached) =>
+        cached || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error())
+      ))
   );
 });

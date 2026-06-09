@@ -183,6 +183,15 @@
 
   // ---- Service Worker (PWA) ------------------------------------------
   if ('serviceWorker' in navigator) {
+    // Quando um service worker novo assume o controle, recarrega a página uma
+    // única vez para que o código mais novo entre em ação automaticamente
+    // (sem o usuário precisar dar "hard refresh").
+    let recarregando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (recarregando) return;
+      recarregando = true;
+      window.location.reload();
+    });
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js').catch((err) =>
         console.warn('[Agro Bras] Falha ao registrar service worker:', err)
