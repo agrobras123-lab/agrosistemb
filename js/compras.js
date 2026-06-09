@@ -268,17 +268,51 @@
     const box = main.querySelector('#itens-lista');
     if (!compra.itens.length) { box.innerHTML = '<div class="empty-sm">Nenhum item adicionado.</div>'; return; }
     box.innerHTML = compra.itens.map((i, idx) => `
-      <div class="item-linha">
+      <div class="item-linha" data-idx="${idx}">
         <div class="item-info">
           <div class="item-desc">${UI().esc(i.descricao)}</div>
           <div class="item-sub">${UI().qtd(i.quantidade)} ${UI().esc(i.unidade)} × ${UI().money(i.preco_unit)}</div>
         </div>
         <div class="item-valor">${UI().money(arred(i.quantidade * i.preco_unit))}</div>
+        <button class="btn btn-sm btn-ghost" data-edit="${idx}" title="Editar item">✏️</button>
         <button class="btn btn-sm btn-ghost btn-del" data-rm="${idx}">✕</button>
       </div>`).join('');
     box.querySelectorAll('[data-rm]').forEach((b) => b.onclick = () => {
       compra.itens.splice(Number(b.dataset.rm), 1); renderItens(); atualizarTotalRodape();
     });
+    box.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => editarItemInline(Number(b.dataset.edit)));
+  }
+
+  function editarItemInline(idx) {
+    const item = compra.itens[idx];
+    const row = main.querySelector(`.item-linha[data-idx="${idx}"]`);
+    row.innerHTML = `
+      <div class="item-info" style="flex:1">
+        <div class="item-desc">${UI().esc(item.descricao)}</div>
+        <div class="item-edit-inputs">
+          <input class="input input-sm-qtd" id="eq-${idx}" type="number" step="0.001" min="0" inputmode="decimal" value="${item.quantidade}" placeholder="Qtd"/>
+          <span>${UI().esc(item.unidade)} ×</span>
+          <input class="input input-sm-preco" id="ep-${idx}" type="number" step="0.01" min="0" inputmode="decimal" value="${item.preco_unit}" placeholder="Preço"/>
+          <button class="btn btn-sm btn-primary" id="eo-${idx}">✓ Ok</button>
+          <button class="btn btn-sm btn-ghost" id="ec-${idx}">Cancelar</button>
+        </div>
+      </div>`;
+    const qtdI = row.querySelector(`#eq-${idx}`);
+    const precoI = row.querySelector(`#ep-${idx}`);
+    qtdI.focus(); qtdI.select();
+    const salvar = () => {
+      const qtd = parseFloat(qtdI.value);
+      const preco = parseFloat(precoI.value);
+      if (!(qtd > 0)) { UI().toast('Quantidade deve ser maior que zero.', 'erro'); return; }
+      if (!(preco >= 0)) { UI().toast('Preço inválido.', 'erro'); return; }
+      compra.itens[idx].quantidade = qtd;
+      compra.itens[idx].preco_unit = preco;
+      renderItens(); atualizarTotalRodape();
+    };
+    row.querySelector(`#eo-${idx}`).onclick = salvar;
+    row.querySelector(`#ec-${idx}`).onclick = renderItens;
+    qtdI.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); precoI.focus(); } if (e.key === 'Escape') renderItens(); };
+    precoI.onkeydown = (e) => { if (e.key === 'Enter') salvar(); if (e.key === 'Escape') renderItens(); };
   }
 
   function atualizarTotalRodape() {

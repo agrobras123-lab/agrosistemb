@@ -571,6 +571,11 @@ textarea { resize: vertical; }
 .item-desc { font-weight: 600; }
 .item-sub { font-size: .82rem; color: var(--cinza-texto); }
 .item-valor { font-weight: 700; font-variant-numeric: tabular-nums; }
+.item-edit-inputs { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.item-edit-inputs .input { padding: 5px 8px; font-size: .88rem; }
+.input-sm-qtd { width: 72px !important; }
+.input-sm-preco { width: 96px !important; }
+.item-edit-inputs span { color: var(--cinza-texto); font-size: .9rem; }
 
 .pg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 .pg-total { font-size: 1.05rem; margin-bottom: 4px; }
