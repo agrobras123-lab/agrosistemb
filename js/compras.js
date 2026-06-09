@@ -86,7 +86,8 @@
         <div class="fluxo-top">
           <button id="btn-buscar" class="btn btn-ghost btn-sm">🔍 Buscar / editar compra</button>
           ${compra.editId ? `<span class="edit-flag">✎ Editando compra nº ${compra.editNumero}</span>
-            <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>` : ''}
+            <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>
+            <button id="btn-excluir-edit" class="btn btn-sm" style="color:var(--erro);border:1px solid var(--erro)">🗑 Excluir esta compra</button>` : ''}
         </div>
         <div class="fluxo-head">
           <h2>${compra.editId ? 'Editar compra' : 'Nova compra'}</h2>
@@ -158,6 +159,8 @@
     main.querySelector('#btn-buscar').onclick = abrirBusca;
     const cancEdit = main.querySelector('#btn-cancelar-edit');
     if (cancEdit) cancEdit.onclick = () => { novaCompra(); pintar(); };
+    const btnExcluirEdit = main.querySelector('#btn-excluir-edit');
+    if (btnExcluirEdit) btnExcluirEdit.onclick = () => excluirCompra(compra.editId, compra.editNumero, null);
     renderItens();
     if (window.AGB && AGB.refreshIcons) AGB.refreshIcons();
   }
@@ -201,11 +204,15 @@
     if (error) { UI().erro('Falha na busca', error); return; }
     if (!data || !data.length) { box.innerHTML = '<div class="empty-sm">Nada encontrado.</div>'; return; }
     box.innerHTML = data.map((p) => `
-      <button class="busca-item" data-id="${p.id}">
-        <span><strong>Nº ${p.numero}</strong> · ${UI().dataCurta(p.data)} · ${UI().esc((p.fornecedores && p.fornecedores.nome) || '—')}</span>
-        <span>${UI().money(p.total)}</span>
-      </button>`).join('');
+      <div class="busca-row">
+        <button class="busca-item" data-id="${p.id}">
+          <span>✏️ <strong>Nº ${p.numero}</strong> · ${UI().dataCurta(p.data)} · ${UI().esc((p.fornecedores && p.fornecedores.nome) || '—')}</span>
+          <span>${UI().money(p.total)}</span>
+        </button>
+        <button class="busca-excluir" data-id="${p.id}" data-num="${p.numero}" title="Excluir compra">🗑</button>
+      </div>`).join('');
     box.querySelectorAll('.busca-item').forEach((b) => b.onclick = () => { m.close(); carregarEdicao(b.dataset.id); });
+    box.querySelectorAll('.busca-excluir').forEach((b) => b.onclick = () => excluirCompra(b.dataset.id, b.dataset.num, m));
   }
 
   async function carregarEdicao(id) {
@@ -316,7 +323,7 @@
         </section>
         <div class="fluxo-rodape">
           <button id="voltar" class="btn btn-ghost btn-grande">← Voltar</button>
-          <button id="confirmar" class="btn btn-primary btn-grande">Confirmar compra</button>
+          <button id="confirmar" class="btn btn-primary btn-grande">${compra.editId ? '✓ Salvar alterações' : 'Confirmar compra'}</button>
         </div>
       </div>`;
 
@@ -457,6 +464,21 @@
     const passos = ['Itens', 'Pagamento', 'Pronto'];
     return `<div class="passos">${passos.map((p, i) =>
       `<span class="passo ${i + 1 === n ? 'ativo' : ''} ${i + 1 < n ? 'feito' : ''}">${i + 1}. ${p}</span>`).join('')}</div>`;
+  }
+
+  // ---- Excluir compra -----------------------------------------------
+  async function excluirCompra(id, numero, modal) {
+    const ok = await UI().confirm(
+      `Excluir compra nº ${numero}?\n\nTodos os itens e pagamentos serão apagados permanentemente.`,
+      { okLabel: 'Excluir compra', perigo: true }
+    );
+    if (!ok) return;
+    if (modal) modal.close();
+    const { error } = await UI().db().from('pedidos_compra').delete().eq('id', id);
+    if (error) { UI().erro('Não foi possível excluir a compra', error); return; }
+    UI().toast('Compra excluída.');
+    novaCompra();
+    pintar();
   }
 
   window.addEventListener('hashchange', () => {

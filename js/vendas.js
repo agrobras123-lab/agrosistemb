@@ -85,7 +85,8 @@
         <div class="fluxo-top">
           ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-ghost btn-sm">🔍 Buscar / editar venda</button>` : ''}
           ${venda.editId ? `<span class="edit-flag">✎ Editando venda nº ${venda.editNumero}</span>
-            <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>` : ''}
+            <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>
+            <button id="btn-excluir-edit" class="btn btn-sm" style="color:var(--erro);border:1px solid var(--erro)">🗑 Excluir esta venda</button>` : ''}
         </div>
         <div class="fluxo-head">
           <h2>${venda.editId ? 'Editar venda' : 'Nova venda'}</h2>
@@ -162,6 +163,8 @@
     main.querySelector('#btn-novo-cliente').onclick = abrirNovoCliente;
     const cancEdit = main.querySelector('#btn-cancelar-edit');
     if (cancEdit) cancEdit.onclick = () => { novaVenda(); pintar(); };
+    const btnExcluirEdit = main.querySelector('#btn-excluir-edit');
+    if (btnExcluirEdit) btnExcluirEdit.onclick = () => excluirVenda(venda.editId, venda.editNumero, null);
     renderItens();
   }
 
@@ -203,11 +206,15 @@
     if (error) { UI().erro('Falha na busca', error); return; }
     if (!data || !data.length) { box.innerHTML = '<div class="empty-sm">Nada encontrado.</div>'; return; }
     box.innerHTML = data.map((p) => `
-      <button class="busca-item" data-id="${p.id}">
-        <span><strong>Nº ${p.numero}</strong> · ${UI().dataCurta(p.data)} · ${UI().esc((p.clientes && p.clientes.nome) || 'Avulso')}</span>
-        <span>${UI().money(p.total)}</span>
-      </button>`).join('');
+      <div class="busca-row">
+        <button class="busca-item" data-id="${p.id}">
+          <span>✏️ <strong>Nº ${p.numero}</strong> · ${UI().dataCurta(p.data)} · ${UI().esc((p.clientes && p.clientes.nome) || 'Avulso')}</span>
+          <span>${UI().money(p.total)}</span>
+        </button>
+        <button class="busca-excluir" data-id="${p.id}" data-num="${p.numero}" title="Excluir venda">🗑</button>
+      </div>`).join('');
     box.querySelectorAll('.busca-item').forEach((b) => b.onclick = () => { m.close(); carregarEdicao(b.dataset.id); });
+    box.querySelectorAll('.busca-excluir').forEach((b) => b.onclick = () => excluirVenda(b.dataset.id, b.dataset.num, m));
   }
 
   async function carregarEdicao(id) {
@@ -353,7 +360,7 @@
         </section>
         <div class="fluxo-rodape">
           <button id="voltar" class="btn btn-ghost btn-grande">← Voltar</button>
-          <button id="confirmar" class="btn btn-primary btn-grande">Confirmar venda</button>
+          <button id="confirmar" class="btn btn-primary btn-grande">${venda.editId ? '✓ Salvar alterações' : 'Confirmar venda'}</button>
         </div>
       </div>`;
 
@@ -497,6 +504,21 @@
     const passos = ['Itens', 'Pagamento', 'Pronto'];
     return `<div class="passos">${passos.map((p, i) =>
       `<span class="passo ${i + 1 === n ? 'ativo' : ''} ${i + 1 < n ? 'feito' : ''}">${i + 1}. ${p}</span>`).join('')}</div>`;
+  }
+
+  // ---- Excluir venda ------------------------------------------------
+  async function excluirVenda(id, numero, modal) {
+    const ok = await UI().confirm(
+      `Excluir venda nº ${numero}?\n\nTodos os itens e pagamentos serão apagados permanentemente.`,
+      { okLabel: 'Excluir venda', perigo: true }
+    );
+    if (!ok) return;
+    if (modal) modal.close();
+    const { error } = await UI().db().from('pedidos_venda').delete().eq('id', id);
+    if (error) { UI().erro('Não foi possível excluir a venda', error); return; }
+    UI().toast('Venda excluída.');
+    novaVenda();
+    pintar();
   }
 
   // Recarrega cadastros ao reentrar na tela (clientes/produtos podem ter mudado)
