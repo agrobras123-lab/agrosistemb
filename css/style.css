@@ -597,7 +597,9 @@ textarea { resize: vertical; }
 .pg-resumo .cp-row { padding: 5px 0; }
 .pg-aberto-row { font-weight: 700; }
 .pg-aberto-pos span:last-child { color: var(--danger); }
-.pg-aberto-neg span:last-child { color: var(--verde); }
+/* Excedente (pago > total) agora é estado de erro bloqueante: vermelho. */
+.pg-aberto-neg span:last-child { color: var(--danger); }
+.pg-excedente-aviso { background: #fdecea; border-color: #f5c6cb; color: #a3261c; font-weight: 600; }
 
 .fluxo-rodape {
   position: fixed; left: var(--sidebar-w); right: 0; bottom: 0;

@@ -399,8 +399,9 @@
           </label>
           <div class="pg-resumo">
             <div class="cp-row"><span>Pago</span><span id="pg-pago">${UI().money(0)}</span></div>
-            <div class="cp-row pg-aberto-row"><span>Parcial em aberto</span><span id="pg-aberto">${UI().money(total)}</span></div>
+            <div class="cp-row pg-aberto-row"><span id="pg-aberto-lbl">Parcial em aberto</span><span id="pg-aberto">${UI().money(total)}</span></div>
           </div>
+          <p class="aviso pg-excedente-aviso" id="pg-excedente" style="display:none">Pagamento maior que o total da compra. Tire o excedente ou ajuste o total antes de confirmar.</p>
         </section>
         <div class="fluxo-rodape">
           <button id="voltar" class="btn btn-ghost btn-grande">← Voltar</button>
@@ -427,11 +428,18 @@
     const total = totalItens();
     const pago = totalPago();
     const aberto = arred(total - pago);
+    const excedente = aberto < -0.005;
     main.querySelector('#pg-pago').textContent = UI().money(pago);
     const abEl = main.querySelector('#pg-aberto');
-    abEl.textContent = UI().money(aberto);
+    const lblEl = main.querySelector('#pg-aberto-lbl');
+    lblEl.textContent = excedente ? 'Excedente (pago a mais)' : 'Parcial em aberto';
+    abEl.textContent = UI().money(excedente ? -aberto : aberto);
     abEl.parentElement.classList.toggle('pg-aberto-pos', aberto > 0.005);
-    abEl.parentElement.classList.toggle('pg-aberto-neg', aberto < -0.005);
+    abEl.parentElement.classList.toggle('pg-aberto-neg', excedente);
+    const aviso = main.querySelector('#pg-excedente');
+    if (aviso) aviso.style.display = excedente ? '' : 'none';
+    const btn = main.querySelector('#confirmar');
+    if (btn) btn.disabled = excedente;
   }
 
   // ---- Gravação ------------------------------------------------------
@@ -440,6 +448,12 @@
     btn.disabled = true;
     const db = UI().db();
     const editando = !!compra.editId;
+    // Trava: pago não pode ser maior que o total da compra.
+    if (totalPago() - totalItens() > 0.005) {
+      UI().toast(`O pagamento (${UI().money(totalPago())}) é maior que o total (${UI().money(totalItens())}). Ajuste antes de salvar.`, 'erro');
+      btn.disabled = false;
+      return;
+    }
     try {
       const itens = compra.itens.map((i) => ({
         produto_id: i.produto_id, quantidade: i.quantidade, preco_unit: i.preco_unit,

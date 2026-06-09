@@ -438,8 +438,9 @@
           </label>
           <div class="pg-resumo">
             <div class="cp-row"><span>Pago</span><span id="pg-pago">${UI().money(0)}</span></div>
-            <div class="cp-row pg-aberto-row"><span>Parcial em aberto</span><span id="pg-aberto">${UI().money(total)}</span></div>
+            <div class="cp-row pg-aberto-row"><span id="pg-aberto-lbl">Parcial em aberto</span><span id="pg-aberto">${UI().money(total)}</span></div>
           </div>
+          <p class="aviso pg-excedente-aviso" id="pg-excedente" style="display:none">Pagamento maior que o total da venda. Tire o excedente (troco) ou ajuste o total antes de confirmar.</p>
           ${venda.cliente_id === 'AVULSO' ? '<p class="aviso">Venda avulsa: o parcial em aberto não é registrado como saldo (sem cliente).</p>' : ''}
         </section>
         <div class="fluxo-rodape">
@@ -467,11 +468,20 @@
     const total = totalItens();
     const pago = totalPago();
     const aberto = arred(total - pago);
+    const excedente = aberto < -0.005;
     main.querySelector('#pg-pago').textContent = UI().money(pago);
     const abEl = main.querySelector('#pg-aberto');
-    abEl.textContent = UI().money(aberto);
+    const lblEl = main.querySelector('#pg-aberto-lbl');
+    // Quando pago > total, mostramos o excedente como valor positivo e rotulamos
+    // de forma clara — em vez de um "parcial em aberto" negativo confuso.
+    lblEl.textContent = excedente ? 'Excedente (pago a mais)' : 'Parcial em aberto';
+    abEl.textContent = UI().money(excedente ? -aberto : aberto);
     abEl.parentElement.classList.toggle('pg-aberto-pos', aberto > 0.005);
-    abEl.parentElement.classList.toggle('pg-aberto-neg', aberto < -0.005);
+    abEl.parentElement.classList.toggle('pg-aberto-neg', excedente);
+    const aviso = main.querySelector('#pg-excedente');
+    if (aviso) aviso.style.display = excedente ? '' : 'none';
+    const btn = main.querySelector('#confirmar');
+    if (btn) btn.disabled = excedente;
   }
 
   // ---- Gravação ------------------------------------------------------
@@ -481,6 +491,12 @@
     const db = UI().db();
     const editando = !!venda.editId;
     if (editando && !AGB.isDono()) { UI().toast('Sem permissão para editar pedidos.', 'erro'); btn.disabled = false; return; }
+    // Trava: pago não pode ser maior que o total (evita troco contado como caixa).
+    if (totalPago() - totalItens() > 0.005) {
+      UI().toast(`O pagamento (${UI().money(totalPago())}) é maior que o total (${UI().money(totalItens())}). Ajuste antes de salvar.`, 'erro');
+      btn.disabled = false;
+      return;
+    }
     try {
       const cliente_id = venda.cliente_id === 'AVULSO' ? null : venda.cliente_id;
       const itens = venda.itens.map((i) => ({
