@@ -735,6 +735,22 @@ textarea { resize: vertical; }
 .cp-obs { font-size: 12.5px; }
 .cp-foot { text-align: center; margin-top: 10px; font-size: 12.5px; }
 
+/* Versão COMPACTA para RELATÓRIOS (uso interno): letra menor, traço mais leve
+   e espaços apertados para gastar menos papel. Não afeta o cupom de venda/compra
+   entregue ao cliente. (Regras depois das de .cupom para vencerem por ordem.) */
+.cupom-rel { font-size: 11px; line-height: 1.25; padding: 5px 8px; font-weight: 600; -webkit-text-stroke: 0.18px #000; }
+.cupom-rel * { font-weight: 600; -webkit-text-stroke: 0.18px #000; }
+.cupom-rel .cp-logo { width: 88px; }
+.cupom-rel .cp-loja { font-size: 12px; }
+.cupom-rel .cp-info { font-size: 9.5px; }
+.cupom-rel .cp-tipo { font-size: 14px; letter-spacing: 1px; margin: 5px 0; padding: 3px 0; }
+.cupom-rel .cp-sep { margin: 3px 0; }
+.cupom-rel .cp-item { margin-bottom: 1px; }
+.cupom-rel .cp-sub { margin: 4px 0 1px; font-size: 11px; }
+.cupom-rel .cp-total { font-size: 12px; margin: 2px 0; }
+.cupom-rel .cp-row { padding: 0; }
+.cupom-rel .cp-foot { margin-top: 6px; font-size: 9.5px; }
+
 /* Pré-visualização do cupom na tela (quando exibido fora de impressão) */
 .cupom-preview { border: 1px solid var(--cinza-borda); border-radius: 8px; box-shadow: var(--sombra); }
 

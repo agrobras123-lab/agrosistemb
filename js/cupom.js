@@ -118,7 +118,7 @@
   // conteudoHTML deve usar as classes cp-* para ficar consistente.
   function relatorio(titulo, subtitulo, conteudoHTML) {
     return `
-      <div class="cupom">
+      <div class="cupom cupom-rel">
         ${cabecalho()}
         <div class="cp-tipo">${titulo}</div>
         ${subtitulo ? `<div class="cp-info" style="text-align:center;margin-bottom:6px">${subtitulo}</div>` : ''}
