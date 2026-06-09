@@ -403,6 +403,8 @@ body.locked { overflow: hidden; }
 .btn-success-soft { background: var(--verde-bg); color: var(--verde); }
 .btn-sm { padding: 6px 10px; font-size: .82rem; border-radius: 8px; }
 .btn-del { color: var(--danger); }
+.btn-outline-verde { background: #fff; color: var(--verde); border: 2px solid var(--verde); font-weight: 600; }
+.btn-outline-verde:hover { background: var(--verde-bg); }
 
 /* ---- Inputs -------------------------------------------------------- */
 .input, textarea {

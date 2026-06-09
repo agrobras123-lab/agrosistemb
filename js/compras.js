@@ -84,7 +84,7 @@
       <div class="fluxo">
         ${totalAPagar > 0 ? `<div class="dk-apagar"><i data-lucide="receipt"></i><div><div class="dk-apagar-lbl">A pagar (fornecedores)</div><div class="dk-apagar-val num">${UI().money(totalAPagar)}</div></div></div>` : ''}
         <div class="fluxo-top">
-          <button id="btn-buscar" class="btn btn-ghost btn-sm">🔍 Buscar / editar compra</button>
+          <button id="btn-buscar" class="btn btn-outline-verde">🔍 Buscar / editar compra</button>
           ${compra.editId ? `<span class="edit-flag">✎ Editando compra nº ${compra.editNumero}</span>
             <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>
             <button id="btn-excluir-edit" class="btn btn-sm" style="color:var(--erro);border:1px solid var(--erro)">🗑 Excluir esta compra</button>` : ''}

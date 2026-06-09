@@ -83,7 +83,7 @@
     main.innerHTML = `
       <div class="fluxo">
         <div class="fluxo-top">
-          ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-ghost btn-sm">🔍 Buscar / editar venda</button>` : ''}
+          ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-outline-verde">🔍 Buscar / editar venda</button>` : ''}
           ${venda.editId ? `<span class="edit-flag">✎ Editando venda nº ${venda.editNumero}</span>
             <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>
             <button id="btn-excluir-edit" class="btn btn-sm" style="color:var(--erro);border:1px solid var(--erro)">🗑 Excluir esta venda</button>` : ''}
