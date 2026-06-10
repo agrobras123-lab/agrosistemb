@@ -12,9 +12,72 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@300;400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body class="locked">
+
+  <!-- ===================== SPLASH DE ABERTURA (animação do logo) ===================== -->
+  <div id="splash" aria-hidden="true">
+    <div class="stage">
+      <svg class="logo" viewBox="80 60 440 460" aria-label="Logo animado Agro Bras">
+        <defs>
+          <linearGradient id="sp-gradVerde" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"  stop-color="#9CC34A"/>
+            <stop offset="55%" stop-color="#5E9B2D"/>
+            <stop offset="100%" stop-color="#1B5E20"/>
+          </linearGradient>
+          <linearGradient id="sp-gradOuro" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%"  stop-color="#E8A317"/>
+            <stop offset="100%" stop-color="#F9C74F"/>
+          </linearGradient>
+          <linearGradient id="sp-gradFolha" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%"  stop-color="#1B5E20"/>
+            <stop offset="100%" stop-color="#6FBF3A"/>
+          </linearGradient>
+        </defs>
+
+        <!-- copa: caule + folhas -->
+        <g class="copa">
+          <path class="galho" pathLength="1" d="M300 200 C 300 186, 298 178, 294 168"/>
+          <g class="folha f1">
+            <path fill="url(#sp-gradFolha)"
+              d="M294 168 C 268 120, 218 104, 196 116 C 192 152, 230 182, 294 168 Z"/>
+            <path d="M294 168 C 262 146, 232 130, 204 120" fill="none"
+                  stroke="#FAF8F2" stroke-width="3" stroke-linecap="round" opacity=".85"/>
+          </g>
+          <g class="folha f2">
+            <path fill="url(#sp-gradFolha)"
+              d="M298 172 C 330 130, 384 122, 404 138 C 404 174, 360 196, 298 172 Z"/>
+            <path d="M298 172 C 334 156, 366 146, 396 140" fill="none"
+                  stroke="#FAF8F2" stroke-width="3" stroke-linecap="round" opacity=".85"/>
+          </g>
+        </g>
+
+        <!-- fruta em espiral -->
+        <g class="fruta">
+          <path class="arc verde" pathLength="1"
+            d="M 267.5 210.7 A 95 95 0 1 1 316.5 393.6" transform="translate(0,6)"/>
+          <path class="arc ouro" pathLength="1"
+            d="M 367.7 324.6 A 72 72 0 1 1 253.7 244.8" transform="translate(0,6)"/>
+          <path class="arc vermelho" pathLength="1"
+            d="M 275 343.3 A 50 50 0 1 1 338.3 267.9" transform="translate(0,6)"/>
+          <path class="arc ouro2" pathLength="1"
+            d="M 315 274 A 30 30 0 1 1 277 319.3" transform="translate(0,6)"/>
+          <circle class="nucleo" cx="300" cy="306" r="11"/>
+        </g>
+      </svg>
+
+      <div class="nome">Agro&nbsp;Bras</div>
+      <div class="divisor">
+        <span class="linha"></span>
+        <span class="semente"></span>
+        <span class="linha dir"></span>
+      </div>
+      <div class="tagline">Hortifruti &nbsp;·&nbsp; Distribuição</div>
+    </div>
+    <button class="sp-skip" type="button" id="splash-skip">Pular</button>
+  </div>
 
   <!-- ===================== TELA DE ACESSO (PIN) ===================== -->
   <div id="pin-screen" class="pin-screen">
@@ -167,6 +230,7 @@
   <!-- Cliente Supabase via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./js/supabase.js"></script>
+  <script src="./js/splash.js"></script>
   <script src="./js/pin.js"></script>
   <script src="./js/ui.js"></script>
   <script src="./js/cupom.js"></script>

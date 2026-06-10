@@ -980,3 +980,119 @@ textarea { resize: vertical; }
   .cupom { width: 100%; }
   @page { size: 80mm auto; margin: 3mm; }
 }
+
+/* =====================================================================
+ * SPLASH DE ABERTURA — animação do logo Agro Bras (toca 1x ao abrir)
+ * Tudo escopado em #splash para não colidir com o resto do app.
+ * ===================================================================== */
+#splash {
+  --sp-verde-escuro:#1B5E20; --sp-verde-medio:#5E9B2D; --sp-verde-claro:#9CC34A;
+  --sp-ouro:#E8A317; --sp-ouro-claro:#F9C74F; --sp-vermelho:#C0392B; --sp-marfim:#FAF8F2;
+  position: fixed; inset: 0; z-index: 999;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sp-marfim); overflow: hidden;
+  font-family: 'Jost', system-ui, sans-serif;
+  opacity: 1; transition: opacity .6s ease;
+}
+#splash.fade-out { opacity: 0; pointer-events: none; }
+#splash::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 38%, rgba(232,163,23,0.06), transparent 55%);
+}
+#splash .stage { text-align: center; position: relative; }
+#splash svg.logo {
+  width: min(72vw, 360px); height: auto; overflow: visible; display: block; margin: 0 auto;
+}
+
+/* espiral: traçado progressivo */
+#splash .arc {
+  fill: none; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: sp-draw 1.1s cubic-bezier(.65,.05,.36,1) forwards;
+}
+#splash .arc.verde    { stroke: url(#sp-gradVerde); stroke-width: 27; animation-delay: .20s; }
+#splash .arc.ouro     { stroke: url(#sp-gradOuro);  stroke-width: 24; animation-delay: .55s; }
+#splash .arc.vermelho { stroke: var(--sp-vermelho); stroke-width: 19; animation-delay: .90s; }
+#splash .arc.ouro2    { stroke: var(--sp-ouro);     stroke-width: 14; animation-delay: 1.25s; }
+@keyframes sp-draw { to { stroke-dashoffset: 0; } }
+
+#splash .nucleo {
+  fill: var(--sp-vermelho); transform-origin: center; transform: scale(0);
+  animation: sp-pop .5s cubic-bezier(.34,1.56,.64,1) 1.65s forwards;
+}
+@keyframes sp-pop { to { transform: scale(1); } }
+
+#splash .fruta { transform-origin: 300px 300px; animation: sp-respira 7s ease-in-out 2.6s infinite; }
+@keyframes sp-respira {
+  0%,100% { transform: rotate(0deg) scale(1); }
+  50%     { transform: rotate(4deg) scale(1.025); }
+}
+
+#splash .folha {
+  transform-origin: 300px 168px; transform: scale(0) rotate(-18deg);
+  animation: sp-brota .8s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+#splash .folha.f1 { animation-delay: 1.85s; }
+#splash .folha.f2 { animation-delay: 2.05s; }
+@keyframes sp-brota { to { transform: scale(1) rotate(0deg); } }
+
+#splash .galho {
+  fill: none; stroke: var(--sp-verde-escuro); stroke-width: 7; stroke-linecap: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: sp-draw .45s ease-out 1.7s forwards;
+}
+#splash .copa { transform-origin: 300px 175px; animation: sp-balanca 5.5s ease-in-out 3s infinite; }
+@keyframes sp-balanca {
+  0%,100% { transform: rotate(0deg); }
+  50%     { transform: rotate(3.5deg); }
+}
+
+#splash .nome {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+  font-size: clamp(2rem, 8vw, 3.2rem); color: var(--sp-verde-escuro);
+  letter-spacing: .45em; text-indent: .45em; text-transform: uppercase;
+  opacity: 0; animation: sp-nome 1.3s cubic-bezier(.2,.7,.3,1) 2.35s forwards;
+  margin-top: .4rem; white-space: nowrap;
+}
+@keyframes sp-nome {
+  from { opacity: 0; letter-spacing: .9em; filter: blur(6px); transform: translateY(10px); }
+  to   { opacity: 1; letter-spacing: .18em; filter: blur(0); transform: translateY(0); }
+}
+
+#splash .divisor { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 1rem; }
+#splash .divisor .linha {
+  height: 2px; width: 0; background: linear-gradient(90deg, transparent, var(--sp-ouro));
+  animation: sp-linha .9s ease-out 3.1s forwards;
+}
+#splash .divisor .linha.dir { background: linear-gradient(90deg, var(--sp-ouro), transparent); }
+@keyframes sp-linha { to { width: min(26vw, 130px); } }
+#splash .semente {
+  width: 11px; height: 18px; border-radius: 50% 50% 50% 50%/60% 60% 40% 40%;
+  background: var(--sp-verde-medio); transform: scale(0);
+  animation: sp-pop .5s cubic-bezier(.34,1.56,.64,1) 3.3s forwards;
+}
+
+#splash .tagline {
+  font-weight: 300; font-size: clamp(.7rem, 2.6vw, .85rem);
+  letter-spacing: .4em; text-indent: .4em; text-transform: uppercase;
+  color: var(--sp-ouro); opacity: 0; margin-top: .9rem;
+  animation: sp-fade 1s ease 3.6s forwards;
+}
+@keyframes sp-fade { to { opacity: 1; } }
+
+#splash .sp-skip {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  border: 1px solid rgba(27,94,32,.25); background: transparent; color: var(--sp-verde-escuro);
+  font-family: 'Jost', sans-serif; font-size: .72rem; letter-spacing: .25em;
+  text-transform: uppercase; padding: .55rem 1.4rem; border-radius: 999px;
+  cursor: pointer; opacity: 0; animation: sp-fade .8s ease 1.2s forwards;
+  transition: background .25s, color .25s;
+}
+#splash .sp-skip:hover { background: var(--sp-verde-escuro); color: var(--sp-marfim); }
+
+@media (prefers-reduced-motion: reduce) {
+  #splash .arc, #splash .galho, #splash .nucleo, #splash .folha, #splash .semente,
+  #splash .nome, #splash .tagline, #splash .divisor .linha {
+    animation-duration: .01s; animation-delay: 0s;
+  }
+  #splash .fruta, #splash .copa { animation: none; }
+}
