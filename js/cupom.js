@@ -108,8 +108,23 @@
       document.body.appendChild(area);
     }
     area.innerHTML = innerHTML;
-    // dá um tempinho pro layout/imagem antes de imprimir
-    setTimeout(() => window.print(), 150);
+
+    // Limpa a área depois de imprimir — não deixa o último cupom preso no DOM.
+    window.addEventListener('afterprint', () => { area.innerHTML = ''; }, { once: true });
+
+    // Só imprime DEPOIS que a logo do cabeçalho carregar. Antes disparávamos
+    // com um timeout fixo de 150ms e, em conexão/impressora lenta, o cupom
+    // saía sem o cabeçalho. Guarda contra disparo duplo (load + timeout).
+    let disparado = false;
+    const go = () => { if (disparado) return; disparado = true; window.print(); };
+    const img = area.querySelector('img');
+    if (img && !img.complete) {
+      img.addEventListener('load', go, { once: true });
+      img.addEventListener('error', go, { once: true });
+      setTimeout(go, 1500); // rede muito lenta: não trava a impressão de vez
+    } else {
+      setTimeout(go, 60);   // logo já em cache: um respiro pro layout e imprime
+    }
   }
 
   function imprimir(d) { imprimirHTML(html(d)); }

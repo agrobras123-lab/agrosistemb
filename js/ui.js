@@ -23,6 +23,19 @@
   UI.esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+  // ---- Compartilhado entre Vendas e Compras --------------------------
+  // (antes duplicado nos dois módulos, que são espelhos um do outro)
+  UI.MOD_ORDEM = ['dinheiro', 'pix', 'cartao', 'boleto'];
+  UI.MOD_LABEL = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', boleto: 'Boleto' };
+  // Arredonda para 2 casas (centavos) sem erro de ponto flutuante.
+  UI.arred = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  // Indicador de etapas do fluxo (1=Itens, 2=Pagamento, 3=Pronto).
+  UI.etapasHTML = (n) => {
+    const passos = ['Itens', 'Pagamento', 'Pronto'];
+    return `<div class="passos">${passos.map((p, i) =>
+      `<span class="passo ${i + 1 === n ? 'ativo' : ''} ${i + 1 < n ? 'feito' : ''}">${i + 1}. ${p}</span>`).join('')}</div>`;
+  };
+
   // ---- Toast ---------------------------------------------------------
   let toastTimer;
   UI.toast = (msg, tipo = 'ok') => {
@@ -177,7 +190,12 @@
         <div class="modal-body">${corpo || ''}</div>
       </div>`;
     const close = () => { root.remove(); document.removeEventListener('keydown', onEsc); };
-    const onEsc = (e) => { if (e.key === 'Escape') close(); };
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      // Fecha só o modal do topo — com modal sobre modal, um Esc não derruba os dois.
+      const abertos = document.querySelectorAll('.modal-backdrop');
+      if (abertos.length && abertos[abertos.length - 1] === root) close();
+    };
     root.addEventListener('click', (e) => { if (e.target === root) close(); });
     root.querySelector('.modal-x').addEventListener('click', close);
     document.addEventListener('keydown', onEsc);

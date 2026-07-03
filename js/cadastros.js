@@ -23,7 +23,8 @@
         { key: 'cnpj',        label: 'CNPJ / CPF',  tipo: 'text' },
         { key: 'telefone',    label: 'Telefone',    tipo: 'text' },
         { key: 'endereco',    label: 'Endereço',    tipo: 'text' },
-        { key: 'observacoes', label: 'Observações', tipo: 'textarea' }
+        { key: 'observacoes', label: 'Observações', tipo: 'textarea' },
+        { key: 'ativo',       label: 'Ativo',       tipo: 'checkbox', padrao: true }
       ]
     },
     fornecedores: {
@@ -34,7 +35,8 @@
         { key: 'cnpj',        label: 'CNPJ / CPF',  tipo: 'text' },
         { key: 'telefone',    label: 'Telefone',    tipo: 'text' },
         { key: 'endereco',    label: 'Endereço',    tipo: 'text' },
-        { key: 'observacoes', label: 'Observações', tipo: 'textarea' }
+        { key: 'observacoes', label: 'Observações', tipo: 'textarea' },
+        { key: 'ativo',       label: 'Ativo',       tipo: 'checkbox', padrao: true }
       ]
     },
     produtos: {
@@ -58,6 +60,7 @@
 
   const estado = { aba: 'clientes', termo: '' };
   let containerEl = null;
+  let buscaTimer = null;  // debounce da busca no servidor
 
   // ---- Saldo (formatação/semântica) ----------------------------------
   function saldoHTML(valor) {
@@ -87,7 +90,13 @@
     main.querySelectorAll('.subnav-tab').forEach((b) =>
       b.addEventListener('click', () => { estado.aba = b.dataset.aba; estado.termo = ''; render(main); }));
     const busca = main.querySelector('#cad-busca');
-    busca.addEventListener('input', () => { estado.termo = busca.value; carregar(); });
+    // Busca no SERVIDOR (com debounce) — antes carregava tudo e filtrava no
+    // cliente, o que perdia registros além do limite de 1000 do PostgREST.
+    busca.addEventListener('input', () => {
+      estado.termo = busca.value;
+      clearTimeout(buscaTimer);
+      buscaTimer = setTimeout(carregar, 250);
+    });
     main.querySelector('#cad-novo').addEventListener('click', () => abrirForm(null));
 
     carregar();
@@ -98,7 +107,14 @@
     const aba = ABAS[estado.aba];
     const lista = containerEl.querySelector('#cad-lista');
     lista.innerHTML = `<div class="muted" style="padding:18px">Carregando...</div>`;
-    let q = UI().db().from(aba.tabela).select('*').order(aba.ordem, { ascending: true });
+    // Filtro aplicado no SERVIDOR (ilike no nome; código exato em produtos),
+    // com teto de 500 linhas — busca completa mesmo com muitos cadastros.
+    let q = UI().db().from(aba.tabela).select('*').order(aba.ordem, { ascending: true }).limit(500);
+    const termo = estado.termo.trim();
+    if (termo) {
+      if (aba.tabela === 'produtos' && /^\d+$/.test(termo)) q = q.eq('codigo', Number(termo));
+      else q = q.ilike('nome', '%' + termo + '%');
+    }
     const { data, error } = await q;
     if (error) {
       console.error('[Agro Bras] Falha ao carregar ' + aba.label, error);
@@ -106,13 +122,7 @@
       return;
     }
 
-    const termo = estado.termo.trim().toLowerCase();
-    const linhas = (data || []).filter((r) => {
-      if (!termo) return true;
-      return (r.nome || '').toLowerCase().includes(termo) ||
-             (aba.tabela === 'produtos' && String(r.codigo).includes(termo));
-    });
-
+    const linhas = data || [];
     if (!linhas.length) {
       lista.innerHTML = `<div class="empty">Nenhum ${aba.label.toLowerCase().replace(/s$/, '')} ${termo ? 'encontrado' : 'cadastrado'}.</div>`;
       return;
@@ -220,14 +230,12 @@
     setTimeout(() => form.querySelector('input,textarea')?.focus(), 50);
   }
 
-  // ---- Excluir -------------------------------------------------------
-  // Mapeamento tabela → tabela de pedidos + coluna FK
-  const PEDIDOS_FK = {
-    clientes:      { tabela: 'pedidos_venda',   coluna: 'cliente_id' },
-    fornecedores:  { tabela: 'pedidos_compra',  coluna: 'fornecedor_id' },
-  };
-
+  // ---- Excluir / inativar -------------------------------------------
+  // Regra (item #3/#12): NUNCA apagar pedidos/movimentos junto — isso
+  // destruiria o histórico financeiro e distorceria relatórios passados.
+  // Se o cadastro tem vínculos (FK), oferecemos INATIVAR em vez de excluir.
   async function excluir(aba, reg) {
+    const temAtivo = aba.campos.some((c) => c.key === 'ativo');
     const ok = await UI().confirm(`Excluir "${reg.nome}"? Esta ação não pode ser desfeita.`,
       { okLabel: 'Excluir', perigo: true });
     if (!ok) return;
@@ -238,33 +246,21 @@
     const fk = error.code === '23503' || (error.message || '').includes('violates foreign key');
     if (!fk) { UI().erro('Não foi possível excluir', error); return; }
 
-    // Verificar se há mapeamento de pedidos para este cadastro
-    const mapa = PEDIDOS_FK[aba.tabela];
-    if (!mapa) {
+    // Tem histórico vinculado. Se der para inativar, ofereça isso (preserva
+    // pedidos, pagamentos e saldos). Senão, apenas informe que está em uso.
+    if (!temAtivo) {
       UI().toast(`"${reg.nome}" está em uso e não pode ser excluído.`, 'erro');
       return;
     }
-
-    // Contar quantos pedidos serão apagados junto
-    const db = UI().db();
-    const { count } = await db.from(mapa.tabela).select('id', { count: 'exact', head: true }).eq(mapa.coluna, reg.id);
-    const qtd = count || 0;
-
-    const forcar = await UI().confirm(
-      `"${reg.nome}" possui ${qtd} pedido${qtd !== 1 ? 's' : ''} vinculado${qtd !== 1 ? 's' : ''}.\n\nAo confirmar, TODOS os pedidos e pagamentos deste cadastro serão apagados permanentemente. Esta ação não tem volta.`,
-      { okLabel: `Apagar tudo (${qtd} pedido${qtd !== 1 ? 's' : ''})`, perigo: true }
+    const inativar = await UI().confirm(
+      `"${reg.nome}" tem pedidos/movimentos vinculados, então não pode ser apagado sem destruir o histórico.\n\nDeseja INATIVAR? Ele some das novas seleções, mas todo o histórico e os saldos ficam preservados. Dá para reativar depois pela edição.`,
+      { okLabel: 'Inativar' }
     );
-    if (!forcar) return;
+    if (!inativar) return;
 
-    // Excluir pedidos (itens e pagamentos cascadeiam no banco)
-    const { error: ePed } = await db.from(mapa.tabela).delete().eq(mapa.coluna, reg.id);
-    if (ePed) { UI().erro('Falha ao apagar pedidos vinculados', ePed); return; }
-
-    // Agora excluir o cadastro
-    const { error: eReg } = await db.from(aba.tabela).delete().eq('id', reg.id);
-    if (eReg) { UI().erro('Pedidos apagados, mas falha ao excluir cadastro', eReg); return; }
-
-    UI().toast(`"${reg.nome}" e ${qtd} pedido${qtd !== 1 ? 's' : ''} excluídos.`);
+    const { error: eInat } = await UI().db().from(aba.tabela).update({ ativo: false }).eq('id', reg.id);
+    if (eInat) { UI().erro('Não foi possível inativar', eInat); return; }
+    UI().toast(`"${reg.nome}" inativado.`);
     carregar();
   }
 

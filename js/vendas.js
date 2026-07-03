@@ -15,8 +15,9 @@
  * ===================================================================== */
 (function () {
   const UI = () => window.AGB.ui;
-  const MOD_ORDEM = ['dinheiro', 'pix', 'cartao', 'boleto'];
-  const MOD_LABEL = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', boleto: 'Boleto' };
+  // Constantes/helpers compartilhados com Compras vivem em ui.js.
+  const MOD_ORDEM = UI().MOD_ORDEM;
+  const MOD_LABEL = UI().MOD_LABEL;
 
   const VEND_KEY = 'agb_vendedor'; // lembra o último vendedor da sessão
 
@@ -39,6 +40,7 @@
       step: 'montar',
       editId: null,            // id do pedido em edição (null = nova venda)
       editNumero: null,
+      editUpdatedAt: null,     // atualizado_em lido ao abrir (trava otimista leve)
       vendedor_id: sessionStorage.getItem(VEND_KEY) || '',  // lembra o vendedor
       cliente_id: '',          // '' = ainda não escolhido; 'AVULSO' = avulsa
       itens: [],               // {produto_id, descricao, unidade, quantidade, preco_unit}
@@ -50,7 +52,7 @@
     };
   }
 
-  const arred = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const arred = UI().arred;
   const totalItens = () => arred(venda.itens.reduce((s, i) => s + i.quantidade * i.preco_unit, 0));
   const totalPago  = () => arred(MOD_ORDEM.reduce((s, m) => s + (Number(venda.pagamentos[m]) || 0), 0));
 
@@ -311,9 +313,18 @@
       const { data: pags } = await db.from('pagamentos_venda')
         .select('modalidade,valor,vencimento').eq('pedido_id', id);
 
+      // Carimbo de versão (best-effort): se a coluna não existir ainda no
+      // banco, seguimos sem trava — não quebra a abertura do pedido.
+      let editUpdatedAt = null;
+      try {
+        const { data: t } = await db.from('pedidos_venda').select('atualizado_em').eq('id', id).single();
+        editUpdatedAt = t ? t.atualizado_em : null;
+      } catch (_) { /* sem coluna: sem trava otimista */ }
+
       novaVenda();
       venda.editId = ped.id;
       venda.editNumero = ped.numero;
+      venda.editUpdatedAt = editUpdatedAt;
       venda.vendedor_id = ped.vendedor_id || '';
       venda.cliente_id = ped.cliente_id || 'AVULSO';
       venda.observacao = ped.observacao || '';
@@ -393,7 +404,7 @@
         </div>
         <div class="item-valor">${UI().money(arred(i.quantidade * i.preco_unit))}</div>
         <button class="btn btn-sm btn-ghost btn-edit-item" data-edit="${idx}">✏️ Editar</button>
-        <button class="btn btn-sm btn-ghost btn-del" data-rm="${idx}">✕</button>
+        <button class="btn btn-sm btn-ghost btn-del" data-rm="${idx}" aria-label="Remover item" title="Remover item">✕</button>
       </div>`).join('');
     box.querySelectorAll('[data-rm]').forEach((b) => b.onclick = () => {
       venda.itens.splice(Number(b.dataset.rm), 1); renderItens(); atualizarTotalRodape();
@@ -605,6 +616,20 @@
       UI().toast(`O pagamento (${UI().money(totalPago())}) é maior que o total (${UI().money(totalItens())}). Ajuste antes de salvar.`, 'erro');
       return;
     }
+    // Trava otimista: avisa se outra pessoa mexeu no pedido desde que foi aberto.
+    if (editando && venda.editUpdatedAt) {
+      try {
+        const { data: cur } = await db.from('pedidos_venda').select('atualizado_em').eq('id', venda.editId).single();
+        if (cur && cur.atualizado_em && cur.atualizado_em !== venda.editUpdatedAt) {
+          const seguir = await UI().confirm(
+            'Esta venda foi alterada por outra pessoa depois que você abriu. Se salvar agora, as mudanças dela serão substituídas pelas suas. Continuar?',
+            { okLabel: 'Salvar assim mesmo', perigo: true }
+          );
+          if (!seguir) return;
+          venda.editUpdatedAt = cur.atualizado_em; // usuário aceitou sobrescrever
+        }
+      } catch (_) { /* sem coluna/rede: não bloqueia o salvamento */ }
+    }
     gravando = true;
     if (btn) btn.disabled = true;
     try {
@@ -713,11 +738,7 @@
     if (v > 0) return `<span class="saldo saldo-deve">Deve ${UI().money(v)}</span>`;
     return `<span class="saldo saldo-credito">Crédito ${UI().money(-v)}</span>`;
   }
-  function etapasHTML(n) {
-    const passos = ['Itens', 'Pagamento', 'Pronto'];
-    return `<div class="passos">${passos.map((p, i) =>
-      `<span class="passo ${i + 1 === n ? 'ativo' : ''} ${i + 1 < n ? 'feito' : ''}">${i + 1}. ${p}</span>`).join('')}</div>`;
-  }
+  const etapasHTML = (n) => UI().etapasHTML(n);
 
   // ---- Excluir venda ------------------------------------------------
   async function excluirVenda(id, numero, modal) {
