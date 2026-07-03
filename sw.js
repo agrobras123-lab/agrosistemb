@@ -3,10 +3,11 @@
  * qualquer requisição ao Supabase (ou a qualquer origem externa) passa
  * direto pela rede. App ONLINE-ONLY.
  */
-// IMPORTANTE: suba este número sempre que alterar QUALQUER arquivo do shell
-// (inclusive js/supabase.js com URL/KEY/PIN), senão o navegador continua
-// servindo a versão antiga em cache.
-const CACHE = 'agrobras-shell-v39';
+// A estratégia é REDE PRIMEIRO (ver fetch abaixo) + auto-reload no app.js, então
+// a versão nova entra sozinha ao recarregar mesmo sem trocar este número. O
+// número serve só para limpar o cache-reserva antigo — bom subir a cada deploy,
+// mas esquecer não trava mais o app em versão velha.
+const CACHE = 'agrobras-shell-v40';
 
 const SHELL = [
   './',
@@ -30,8 +31,12 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
+  // Pré-cache best-effort: se um arquivo faltar/404, não aborta a instalação
+  // inteira (allSettled em vez de addAll). O shell é reserva p/ offline.
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then((cache) => Promise.allSettled(SHELL.map((u) => cache.add(u))))
+      .then(() => self.skipWaiting())
   );
 });
 

@@ -120,10 +120,14 @@
     if (window.AGB && AGB.lock) AGB.lock();
   });
 
-  // Botão de backup na sidebar (a função vive em dashboard.js)
+  // Botões de backup/restauração na sidebar (as funções vivem em dashboard.js)
   const sbBackup = document.getElementById('sb-backup');
   if (sbBackup) sbBackup.addEventListener('click', () => {
     if (window.AGB && AGB.exportarBackup) AGB.exportarBackup(sbBackup);
+  });
+  const sbRestore = document.getElementById('sb-restore');
+  if (sbRestore) sbRestore.addEventListener('click', () => {
+    if (window.AGB && AGB.importarBackup) AGB.importarBackup(sbRestore);
   });
 
   // ---- Atalhos de teclado --------------------------------------------

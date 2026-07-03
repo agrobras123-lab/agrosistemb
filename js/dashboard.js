@@ -11,6 +11,13 @@
     return { ini: ini.toISOString(), fim: fim.toISOString() };
   }
 
+  // Data local no formato YYYY-MM-DD (dia do negócio). Precisa bater com as
+  // chaves do rel_fluxo, que agora agrupa em America/Sao_Paulo — usar
+  // toISOString() aqui jogaria as vendas da noite para o dia seguinte (UTC).
+  function ymdLocal(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
   // "R$ 1.234,56" → "R$ 1.234<span class="dk-cents">,56</span>"
   function moneyHTML(n) {
     const s = UI().money(n);
@@ -77,7 +84,7 @@
     const dias = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(hoje); d.setDate(hoje.getDate() - i);
-      dias.push(d.toISOString().slice(0, 10));
+      dias.push(ymdLocal(d));
     }
     const vendas = dias.map(d => Number(vMap[d]) || 0);
     const compras = dias.map(d => Number(cMap[d]) || 0);
@@ -348,7 +355,64 @@
     }
   }
 
+  // ---- Restaurar backup (importar .json exportado acima) ----------------
+  // Faz upsert por id, na MESMA ordem de TABELAS_BACKUP (pais antes dos
+  // filhos → respeita as FKs). Registros com id igual são sobrescritos; o
+  // que já existe e não está no arquivo permanece. Indicado para recuperação.
+  async function importarBackup(btn) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.onchange = async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      let dump;
+      try { dump = JSON.parse(await file.text()); }
+      catch (e) { UI().erro('Arquivo inválido (não é JSON)', e); return; }
+
+      const tabelas = dump && dump.tabelas;
+      if (!tabelas || typeof tabelas !== 'object') {
+        UI().toast('Este arquivo não parece um backup do Agro Bras.', 'erro');
+        return;
+      }
+      const totalLinhas = Object.values(tabelas).reduce((s, a) => s + (Array.isArray(a) ? a.length : 0), 0);
+      const quando = dump.exportado_em ? UI().dataCurta(dump.exportado_em) : 'data desconhecida';
+      const ok = await UI().confirm(
+        `Restaurar backup de ${quando}?\n\nVai inserir/atualizar ${totalLinhas} registro(s). ` +
+        `Registros com o mesmo id são sobrescritos; o que já existe e não está no arquivo é mantido. ` +
+        `Use apenas para recuperação.`,
+        { okLabel: 'Restaurar', perigo: true }
+      );
+      if (!ok) return;
+
+      const original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Restaurando...'; }
+      try {
+        const db = UI().db();
+        let gravados = 0;
+        for (const t of TABELAS_BACKUP) {          // ordem FK-safe (pais primeiro)
+          const rows = tabelas[t];
+          if (!Array.isArray(rows) || !rows.length) continue;
+          for (let i = 0; i < rows.length; i += 500) {  // em lotes p/ não estourar payload
+            const chunk = rows.slice(i, i + 500);
+            const { error } = await db.from(t).upsert(chunk, { onConflict: 'id' });
+            if (error) throw error;
+            gravados += chunk.length;
+          }
+        }
+        UI().toast(`Backup restaurado (${gravados} registros).`);
+        if ((location.hash || '').includes('inicio') && main) render(main);
+      } catch (err) {
+        UI().erro('Falha ao restaurar backup', err);
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; if (window.AGB && AGB.refreshIcons) AGB.refreshIcons(); }
+      }
+    };
+    input.click();
+  }
+
   window.AGB = window.AGB || {};
   window.AGB.exportarBackup = exportarBackup;
+  window.AGB.importarBackup = importarBackup;
   window.AGB.registerView('inicio', render);
 })();

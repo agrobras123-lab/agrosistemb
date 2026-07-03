@@ -22,6 +22,7 @@ create table clientes (
   endereco      text,
   telefone      text,
   observacoes   text,
+  ativo         boolean not null default true,       -- inativar em vez de apagar (preserva histórico)
   saldo_devedor numeric(14,2) not null default 0,   -- mantido por trigger
   criado_em     timestamptz not null default now()
 );
@@ -33,6 +34,7 @@ create table fornecedores (
   endereco     text,
   telefone     text,
   observacoes  text,
+  ativo        boolean not null default true,        -- inativar em vez de apagar (preserva histórico)
   saldo_aberto numeric(14,2) not null default 0,     -- mantido por trigger
   criado_em    timestamptz not null default now()
 );
@@ -51,13 +53,14 @@ create table produtos (
 
 create sequence if not exists seq_pedido_venda start 1;
 create table pedidos_venda (
-  id          uuid primary key default gen_random_uuid(),
-  numero      integer not null unique default nextval('seq_pedido_venda'),
-  data        timestamptz not null default now(),
-  vendedor_id uuid references vendedores(id),
-  cliente_id  uuid references clientes(id),   -- NULL = venda avulsa
-  observacao  text,
-  total       numeric(14,2) not null default 0  -- mantido por trigger (soma dos itens)
+  id            uuid primary key default gen_random_uuid(),
+  numero        integer not null unique default nextval('seq_pedido_venda'),
+  data          timestamptz not null default now(),
+  vendedor_id   uuid references vendedores(id),
+  cliente_id    uuid references clientes(id),   -- NULL = venda avulsa
+  observacao    text,
+  total         numeric(14,2) not null default 0,  -- mantido por trigger (soma dos itens)
+  atualizado_em timestamptz not null default now() -- bump por trigger (trava otimista de edição)
 );
 
 create table itens_venda (
@@ -88,7 +91,8 @@ create table pedidos_compra (
   vendedor_id   uuid references vendedores(id),
   fornecedor_id uuid references fornecedores(id),
   observacao    text,
-  total         numeric(14,2) not null default 0
+  total         numeric(14,2) not null default 0,
+  atualizado_em timestamptz not null default now() -- bump por trigger (trava otimista de edição)
 );
 
 create table itens_compra (
@@ -289,6 +293,27 @@ begin
 end; $$;
 create trigger t_ajustes_saldo after insert or update or delete on ajustes_saldo
 for each row execute function trg_ajustes_saldo();
+
+-- ============ MIGRAÇÃO (bancos que já rodaram versão anterior) ========
+-- Idempotente. Em instalação nova não faz nada além de confirmar o que já
+-- existe; em banco antigo, adiciona as colunas novas sem perder dados.
+alter table clientes       add column if not exists ativo boolean not null default true;
+alter table fornecedores   add column if not exists ativo boolean not null default true;
+alter table pedidos_venda  add column if not exists atualizado_em timestamptz not null default now();
+alter table pedidos_compra add column if not exists atualizado_em timestamptz not null default now();
+
+-- ===== TOUCH: bump de atualizado_em em toda alteração do pedido =======
+-- Serve de "carimbo" para a trava otimista: o app lê atualizado_em ao abrir
+-- o pedido e, antes de salvar a edição, confere se ninguém mexeu no meio.
+create or replace function trg_touch_pedido() returns trigger language plpgsql as $$
+begin
+  new.atualizado_em := now();
+  return new;
+end; $$;
+create or replace trigger t_touch_pedido_venda before update on pedidos_venda
+  for each row execute function trg_touch_pedido();
+create or replace trigger t_touch_pedido_compra before update on pedidos_compra
+  for each row execute function trg_touch_pedido();
 
 -- ============================== RLS ==================================
 -- ATENÇÃO: política aberta. Com a chave anon embutida num app estático,

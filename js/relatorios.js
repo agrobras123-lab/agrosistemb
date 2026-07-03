@@ -60,8 +60,7 @@
 
   async function listaCache(tabela) {
     if (cache[tabela]) return cache[tabela];
-    const cols = tabela === 'vendedores' ? 'id,nome' : 'id,nome';
-    const { data } = await UI().db().from(tabela).select(cols).order('nome');
+    const { data } = await UI().db().from(tabela).select('id,nome').order('nome');
     cache[tabela] = data || [];
     return cache[tabela];
   }

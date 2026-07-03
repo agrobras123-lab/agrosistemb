@@ -166,7 +166,9 @@ $func$;
 -- ---------------------------------------------------------------------
 -- 4) FLUXO por dia (dashboard, 7 dias). Soma vendas e compras por dia
 --    no servidor (antes baixava 7 dias de pedidos e capava em 1000).
---    Chaves de data em UTC (YYYY-MM-DD), iguais às do app.
+--    Chaves de data no fuso America/Sao_Paulo (YYYY-MM-DD) — o "dia do
+--    negócio" é o dia local, para bater com o KPI "vendas do dia".
+--    (Antes agrupava em UTC: uma venda das 22h caía no dia seguinte.)
 -- ---------------------------------------------------------------------
 create or replace function rel_fluxo(p_ini timestamptz, p_fim timestamptz)
 returns jsonb
@@ -176,11 +178,11 @@ as $$
   select jsonb_build_object(
     'vendas', coalesce((
        select jsonb_object_agg(d, s) from (
-         select to_char(data at time zone 'UTC','YYYY-MM-DD') d, sum(total) s
+         select to_char(data at time zone 'America/Sao_Paulo','YYYY-MM-DD') d, sum(total) s
          from pedidos_venda where data >= p_ini and data < p_fim group by 1) a), '{}'::jsonb),
     'compras', coalesce((
        select jsonb_object_agg(d, s) from (
-         select to_char(data at time zone 'UTC','YYYY-MM-DD') d, sum(total) s
+         select to_char(data at time zone 'America/Sao_Paulo','YYYY-MM-DD') d, sum(total) s
          from pedidos_compra where data >= p_ini and data < p_fim group by 1) b), '{}'::jsonb)
   );
 $$;

@@ -1,0 +1,30 @@
+name: CI
+
+# Checagem leve e sem deploy: garante que nenhum arquivo JS foi para o repo
+# com erro de sintaxe (o app é estático, servido direto pelo GitHub Pages) e
+# que os JSON de configuração são válidos. Não toca no deploy do Pages.
+on:
+  push:
+    branches: [ main, "claude/**" ]
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Checar sintaxe dos arquivos JS
+        run: |
+          set -e
+          for f in js/*.js sw.js; do
+            echo "node --check $f"
+            node --check "$f"
+          done
+
+      - name: Validar JSON de configuração
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest.json ok')"
