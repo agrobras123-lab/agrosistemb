@@ -267,6 +267,7 @@
   // ---- Ajuste de saldo (cliente / fornecedor) -----------------------
   async function abrirSaldo(reg) {
     const aba = ABAS[estado.aba];
+    const ehCliente = aba.tipoEntidade === 'cliente';
     const m = UI().openModal({
       titulo: 'Saldo — ' + reg.nome,
       largura: '440px',
@@ -275,6 +276,14 @@
           <span class="muted">Saldo atual</span>
           <div id="saldo-display">${saldoHTML(reg[aba.saldoCol])}</div>
         </div>
+        ${ehCliente ? `
+        <div class="receber-box">
+          <div class="receber-titulo">💵 Receber pagamento <span class="muted">— abate a dívida e entra no caixa do dia</span></div>
+          <input class="input" id="rec-valor" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="Valor recebido (R$)"/>
+          <div class="receber-formas">
+            ${UI().MOD_ORDEM.map((mm) => `<button type="button" class="btn btn-outline-verde btn-sm" data-receber="${mm}">${UI().MOD_LABEL[mm]}</button>`).join('')}
+          </div>
+        </div>` : ''}
         <form id="saldo-form">
           <label class="campo"><span>Valor (R$)</span>
             <input class="input" name="valor" type="number" step="0.01" min="0.01" inputmode="decimal" required/></label>
@@ -321,20 +330,30 @@
         </div>`).join('');
     }
 
-    async function lancar(tipo, valor, obs) {
+    async function lancar(tipo, valor, obs, modalidade) {
       if (!(valor > 0)) { UI().toast('Informe um valor maior que zero.', 'erro'); return; }
-      const { error } = await UI().db().from('ajustes_saldo').insert({
-        tipo_entidade: aba.tipoEntidade, entidade_id: reg.id, tipo, valor, observacao: obs || null
-      });
+      // Só manda a coluna `modalidade` quando há recebimento — assim o débito/
+      // crédito manual continua funcionando mesmo em banco ainda não migrado.
+      const payload = { tipo_entidade: aba.tipoEntidade, entidade_id: reg.id, tipo, valor, observacao: obs || null };
+      if (modalidade) payload.modalidade = modalidade;
+      const { error } = await UI().db().from('ajustes_saldo').insert(payload);
       if (error) { UI().erro('Falha no lançamento', error); return; }
-      UI().toast('Lançamento registrado.');
+      UI().toast(modalidade ? 'Recebimento registrado.' : 'Lançamento registrado.');
       form.reset();
+      const recV = m.body.querySelector('#rec-valor'); if (recV) recV.value = '';
       refrescarSaldo();
     }
 
     form.querySelectorAll('[data-tipo]').forEach((b) => b.onclick = () => {
       const valor = parseFloat(form.elements.valor.value);
       lancar(b.dataset.tipo, valor, form.elements.obs.value.trim());
+    });
+
+    // Receber pagamento de fiado (crédito COM forma → entra no caixa do dia).
+    m.body.querySelectorAll('[data-receber]').forEach((b) => b.onclick = () => {
+      const valor = parseFloat((m.body.querySelector('#rec-valor') || {}).value);
+      const mod = b.dataset.receber;
+      lancar('credito', valor, 'Recebimento (' + UI().MOD_LABEL[mod] + ')', mod);
     });
 
     m.body.querySelector('#btn-zerar').onclick = async () => {

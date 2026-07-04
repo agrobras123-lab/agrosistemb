@@ -41,7 +41,7 @@
     main.innerHTML = `
       <nav class="subnav">
         ${[['vendas', 'Vendas'], ['compras', 'Compras'], ['clientes', 'Clientes'],
-           ['fornecedores', 'Fornecedores'], ['produtos', 'Produtos']]
+           ['fornecedores', 'Fornecedores'], ['produtos', 'Produtos'], ['boletos', 'Boletos']]
           .map(([k, l]) => `<button class="subnav-tab${k === estado.aba ? ' active' : ''}" data-aba="${k}">${l}</button>`).join('')}
       </nav>
       <div id="rel-conteudo"></div>`;
@@ -56,6 +56,7 @@
     if (estado.aba === 'clientes') return telaSaldos('clientes');
     if (estado.aba === 'fornecedores') return telaSaldos('fornecedores');
     if (estado.aba === 'produtos') return telaProdutos();
+    if (estado.aba === 'boletos') return telaBoletos();
   }
 
   async function listaCache(tabela) {
@@ -493,6 +494,128 @@
       const conteudo = `<div class="cp-sep"></div>${bloco('Por quantidade (top 15)', porQtd, 'qtd')}<div class="cp-sep"></div>${bloco('Por valor (top 15)', porValor, 'valor')}`;
       AGB.cupom.imprimirHTML(AGB.cupom.relatorio('PRODUTOS MAIS VENDIDOS', UI().dataCurta(new Date().toISOString()), conteudo));
     };
+  }
+
+  // ============================ BOLETOS ===============================
+  // Agenda de vencimentos, com clientes (a receber) e fornecedores (a pagar)
+  // bem separados. Lê os pagamentos modalidade=boleto que têm vencimento.
+  async function telaBoletos() {
+    const box = main.querySelector('#rel-conteudo');
+    const hoje = new Date();
+    const fim = new Date(hoje); fim.setDate(hoje.getDate() + 60);
+    const per = { ini: fmtYMD(hoje), fim: fmtYMD(fim) };
+    box.innerHTML = `
+      <section class="card bloco">
+        <div class="filtros">
+          <label class="campo"><span>Vencimento de</span><input id="b-ini" class="input" type="date" value="${per.ini}"/></label>
+          <label class="campo"><span>Até</span><input id="b-fim" class="input" type="date" value="${per.fim}"/></label>
+          <div class="filtros-acoes">
+            <button id="b-gerar" class="btn btn-primary">Gerar</button>
+            <button id="b-imprimir" class="btn btn-ghost" disabled>🖨 Imprimir</button>
+          </div>
+        </div>
+        <p class="muted" style="font-size:.8rem;margin:6px 2px 0">O padrão mostra os próximos 60 dias. Amplie o período para trás para ver vencidos.</p>
+      </section>
+      <div id="b-result"></div>`;
+
+    let ultimo = null;
+    const gerar = async () => {
+      const f = { ini: box.querySelector('#b-ini').value, fim: box.querySelector('#b-fim').value };
+      if (!f.ini || !f.fim) { UI().toast('Informe o período.', 'erro'); return; }
+      const res = box.querySelector('#b-result');
+      res.innerHTML = `<div class="muted" style="padding:18px">Carregando boletos...</div>`;
+      try {
+        ultimo = await consultarBoletos(f); ultimo.f = f;
+        renderBoletos(res, ultimo);
+        box.querySelector('#b-imprimir').disabled = false;
+      } catch (err) { UI().erro('Falha ao carregar boletos', err); res.innerHTML = ''; }
+    };
+    box.querySelector('#b-gerar').onclick = gerar;
+    box.querySelector('#b-imprimir').onclick = () => { if (ultimo) AGB.cupom.imprimirHTML(printBoletos(ultimo)); };
+    gerar();
+  }
+
+  async function consultarBoletos(f) {
+    const db = UI().db();
+    const [recv, pay] = await Promise.all([
+      db.from('pagamentos_venda').select('valor,vencimento,pedidos_venda(numero,clientes(nome))')
+        .eq('modalidade', 'boleto').not('vencimento', 'is', null)
+        .gte('vencimento', f.ini).lte('vencimento', f.fim)
+        .order('vencimento', { ascending: true }).limit(500),
+      db.from('pagamentos_compra').select('valor,vencimento,pedidos_compra(numero,fornecedores(nome))')
+        .eq('modalidade', 'boleto').not('vencimento', 'is', null)
+        .gte('vencimento', f.ini).lte('vencimento', f.fim)
+        .order('vencimento', { ascending: true }).limit(500)
+    ]);
+    if (recv.error) throw recv.error;
+    if (pay.error) throw pay.error;
+    const receber = (recv.data || []).map((r) => ({
+      vencimento: r.vencimento, valor: Number(r.valor),
+      numero: r.pedidos_venda ? r.pedidos_venda.numero : null,
+      nome: (r.pedidos_venda && r.pedidos_venda.clientes && r.pedidos_venda.clientes.nome) || 'Avulso'
+    }));
+    const pagar = (pay.data || []).map((r) => ({
+      vencimento: r.vencimento, valor: Number(r.valor),
+      numero: r.pedidos_compra ? r.pedidos_compra.numero : null,
+      nome: (r.pedidos_compra && r.pedidos_compra.fornecedores && r.pedidos_compra.fornecedores.nome) || '—'
+    }));
+    return { receber, pagar };
+  }
+
+  function statusVenc(venc) {
+    const hojeYMD = fmtYMD(new Date());
+    if (venc < hojeYMD) return { cls: 'cor-deve', txt: 'Vencido' };
+    if (venc === hojeYMD) return { cls: 'cor-deve', txt: 'Hoje' };
+    return { cls: '', txt: 'A vencer' };
+  }
+  const somaBoletos = (rows) => rows.reduce((s, x) => s + x.valor, 0);
+
+  function secaoBoletos(titulo, rows, tipoNome) {
+    const total = somaBoletos(rows);
+    const vencido = somaBoletos(rows.filter((r) => r.vencimento < fmtYMD(new Date())));
+    const linhas = rows.map((r) => {
+      const st = statusVenc(r.vencimento);
+      return `<tr>
+        <td>${UI().dataCurta(r.vencimento + 'T00:00:00')}</td>
+        <td class="${st.cls}">${st.txt}</td>
+        <td class="td-nome">${UI().esc(r.nome)}</td>
+        <td>#${r.numero != null ? r.numero : '—'}</td>
+        <td class="td-valor">${UI().money(r.valor)}</td>
+      </tr>`;
+    }).join('');
+    return `<section class="card bloco">
+      <h3 class="bloco-titulo">${titulo}</h3>
+      ${rows.length ? `<div class="cad-lista" style="box-shadow:none;border:none"><table class="tabela">
+        <thead><tr><th>Vencimento</th><th>Situação</th><th>${tipoNome}</th><th>Pedido</th><th>Valor</th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>
+        <div class="cp-row mod-total"><span>Total${vencido > 0.005 ? ` · vencido ${UI().money(vencido)}` : ''}</span><span>${UI().money(total)}</span></div>`
+        : '<div class="empty-sm">Nenhum boleto no período.</div>'}
+    </section>`;
+  }
+
+  function renderBoletos(res, r) {
+    res.innerHTML = `
+      <div class="resumo-cards">
+        <div class="resumo-card"><span>A receber (boletos)</span><strong class="${somaBoletos(r.receber) > 0.005 ? 'cor-deve' : ''}">${UI().money(somaBoletos(r.receber))}</strong></div>
+        <div class="resumo-card"><span>A pagar (boletos)</span><strong class="${somaBoletos(r.pagar) > 0.005 ? 'cor-deve' : ''}">${UI().money(somaBoletos(r.pagar))}</strong></div>
+      </div>
+      ${secaoBoletos('📥 A receber — clientes', r.receber, 'Cliente')}
+      ${secaoBoletos('📤 A pagar — fornecedores', r.pagar, 'Fornecedor')}`;
+  }
+
+  function printBoletos(r) {
+    const linha = (x) => `<div class="cp-row"><span>${UI().dataCurta(x.vencimento + 'T00:00:00')} · ${UI().esc(x.nome)}</span><span>${UI().money(x.valor)}</span></div>`;
+    const sub = `${UI().dataCurta(r.f.ini + 'T00:00:00')} a ${UI().dataCurta(r.f.fim + 'T00:00:00')}`;
+    const conteudo = `
+      <div class="cp-sep"></div>
+      <div class="cp-sub">A RECEBER (CLIENTES)</div>
+      ${r.receber.map(linha).join('') || '<div class="cp-info">Nenhum.</div>'}
+      <div class="cp-row cp-total"><span>TOTAL A RECEBER</span><span>${UI().money(somaBoletos(r.receber))}</span></div>
+      <div class="cp-sep"></div>
+      <div class="cp-sub">A PAGAR (FORNECEDORES)</div>
+      ${r.pagar.map(linha).join('') || '<div class="cp-info">Nenhum.</div>'}
+      <div class="cp-row cp-total"><span>TOTAL A PAGAR</span><span>${UI().money(somaBoletos(r.pagar))}</span></div>`;
+    return AGB.cupom.relatorio('BOLETOS A VENCER', sub, conteudo);
   }
 
   // ---- Helpers -------------------------------------------------------

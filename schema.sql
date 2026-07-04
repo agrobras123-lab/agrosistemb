@@ -121,6 +121,9 @@ create table ajustes_saldo (
   entidade_id   uuid not null,
   tipo          text not null check (tipo in ('debito','credito')),
   valor         numeric(14,2) not null,
+  -- forma de pagamento QUANDO o ajuste é um recebimento de fiado (credito
+  -- com modalidade). NULL = ajuste/correção manual (não entra no caixa do dia).
+  modalidade    text check (modalidade in ('dinheiro','pix','cartao','boleto')),
   observacao    text,
   data          timestamptz not null default now()
 );
@@ -301,6 +304,12 @@ alter table clientes       add column if not exists ativo boolean not null defau
 alter table fornecedores   add column if not exists ativo boolean not null default true;
 alter table pedidos_venda  add column if not exists atualizado_em timestamptz not null default now();
 alter table pedidos_compra add column if not exists atualizado_em timestamptz not null default now();
+-- recebimento de fiado com forma de pagamento (entra no caixa do dia)
+alter table ajustes_saldo  add column if not exists modalidade text
+  check (modalidade in ('dinheiro','pix','cartao','boleto'));
+-- agenda de boletos (acelera a busca por vencimento)
+create index if not exists idx_gv_venc on pagamentos_venda(vencimento)  where modalidade = 'boleto';
+create index if not exists idx_gc_venc on pagamentos_compra(vencimento) where modalidade = 'boleto';
 
 -- ===== TOUCH: bump de atualizado_em em toda alteração do pedido =======
 -- Serve de "carimbo" para a trava otimista: o app lê atualizado_em ao abrir

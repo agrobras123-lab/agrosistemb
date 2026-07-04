@@ -7,7 +7,7 @@
 // a versão nova entra sozinha ao recarregar mesmo sem trocar este número. O
 // número serve só para limpar o cache-reserva antigo — bom subir a cada deploy,
 // mas esquecer não trava mais o app em versão velha.
-const CACHE = 'agrobras-shell-v40';
+const CACHE = 'agrobras-shell-v41';
 
 const SHELL = [
   './',
