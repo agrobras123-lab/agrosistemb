@@ -536,6 +536,17 @@ textarea { resize: vertical; }
 .zerar-box { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .zerar-box .muted { font-size: .8rem; }
 
+/* Receber pagamento de fiado (entra no caixa) */
+.receber-box {
+  border: 1px solid var(--brand-soft, #d6efdf); background: var(--brand-soft, #f0faf3);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;
+}
+.receber-titulo { font-weight: 700; font-size: .92rem; margin-bottom: 8px; }
+.receber-titulo .muted { font-weight: 400; font-size: .78rem; }
+.receber-box #rec-valor { width: 100%; margin-bottom: 8px; }
+.receber-formas { display: flex; flex-wrap: wrap; gap: 6px; }
+.receber-formas .btn { flex: 1 1 auto; }
+
 .hist-ajustes { margin-top: 16px; }
 .hist-titulo { font-size: .76rem; text-transform: uppercase; letter-spacing: .4px; color: var(--cinza-texto); margin-bottom: 6px; }
 .hist-linha { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid #f0f3f0; font-size: .85rem; }
@@ -575,6 +586,15 @@ textarea { resize: vertical; }
 
 .item-add { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 8px; align-items: end; }
 .item-add .input { margin: 0; }
+
+/* Dica de último preço praticado (abaixo da linha de adicionar item) */
+.preco-hint { min-height: 18px; margin: 6px 2px 0; font-size: .82rem; color: var(--cinza-texto); }
+.preco-hint-btn {
+  border: 1px solid var(--brand, #1f7a33); color: var(--brand-600, #16864A);
+  background: var(--brand-soft, #f0faf3); border-radius: 999px;
+  padding: 1px 9px; font-weight: 700; font-size: .82rem; cursor: pointer;
+}
+.preco-hint-btn:hover { background: var(--brand, #1f7a33); color: #fff; }
 .itens-lista { margin-top: 12px; }
 .empty-sm { color: var(--cinza-texto); padding: 10px 0; font-size: .9rem; }
 .item-linha { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #f0f3f0; }

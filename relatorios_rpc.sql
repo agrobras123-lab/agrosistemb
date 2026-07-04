@@ -188,12 +188,50 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
+-- 5) ÚLTIMO PREÇO praticado por produto (venda ou compra). Uma linha por
+--    produto (o preço do lançamento mais recente) num JSON só. O app
+--    carrega isso 1x ao abrir a tela e mostra "último: R$ X" ao lançar o
+--    item — sem consulta por tecla. p_tipo: 'venda' | 'compra'.
+--    Formato: { "<produto_id>": { "preco": n, "data": iso }, ... }
+-- ---------------------------------------------------------------------
+create or replace function rel_ultimo_preco(p_tipo text)
+returns jsonb
+language plpgsql stable
+set search_path = public
+as $func$
+declare t_item text; t_ped text; v jsonb;
+begin
+  if p_tipo = 'venda' then
+    t_item := 'itens_venda';  t_ped := 'pedidos_venda';
+  elsif p_tipo = 'compra' then
+    t_item := 'itens_compra'; t_ped := 'pedidos_compra';
+  else
+    raise exception 'rel_ultimo_preco: tipo invalido %', p_tipo;
+  end if;
+
+  execute format($q$
+    select coalesce(jsonb_object_agg(produto_id::text,
+             jsonb_build_object('preco', preco_unit, 'data', data)), '{}'::jsonb)
+    from (
+      select distinct on (i.produto_id) i.produto_id, i.preco_unit, p.data
+      from %1$I i join %2$I p on p.id = i.pedido_id
+      order by i.produto_id, p.data desc
+    ) z
+  $q$, t_item, t_ped)
+  into v;
+
+  return v;
+end;
+$func$;
+
+-- ---------------------------------------------------------------------
 -- Permissões (a app usa a anon key)
 -- ---------------------------------------------------------------------
 grant execute on function rel_transacao(text,timestamptz,timestamptz,uuid,uuid,text,int) to anon, authenticated;
 grant execute on function rel_produtos(int)                                              to anon, authenticated;
 grant execute on function rel_historico(text,uuid,int)                                   to anon, authenticated;
 grant execute on function rel_fluxo(timestamptz,timestamptz)                             to anon, authenticated;
+grant execute on function rel_ultimo_preco(text)                                         to anon, authenticated;
 
 -- Recarrega o cache de schema do PostgREST (pra a app enxergar as funcoes na hora)
 notify pgrst, 'reload schema';

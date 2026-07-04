@@ -58,6 +58,23 @@
     return { aReceber, qtdDevedores: devedores.length, maior: devedores[0] || null };
   }
 
+  // Fiado recebido no dia (crédito COM forma de pagamento). Só dinheiro/pix/
+  // cartão contam como caixa (boleto não é caixa imediato). Best-effort: se a
+  // coluna `modalidade` ainda não existe (pré-migração), devolve 0.
+  async function carregarRecebidoFiado({ ini, fim }) {
+    try {
+      const { data, error } = await UI().db().from('ajustes_saldo')
+        .select('valor,modalidade')
+        .eq('tipo_entidade', 'cliente').eq('tipo', 'credito')
+        .in('modalidade', ['dinheiro', 'pix', 'cartao'])
+        .gte('data', ini).lt('data', fim);
+      if (error) throw error;
+      return { total: (data || []).reduce((s, x) => s + (Number(x.valor) || 0), 0) };
+    } catch (_) {
+      return { total: 0 };
+    }
+  }
+
   async function carregarUltimos() {
     const db = UI().db();
     const { data, error } = await db.from('pedidos_venda')
@@ -145,15 +162,16 @@
   async function render(el) {
     main = el;
     main.innerHTML = '<div style="padding:20px" class="muted">Carregando...</div>';
-    let v, c, saldos, ultimos, fluxo;
+    let v, c, saldos, ultimos, fluxo, recebido;
     try {
       const hoje = intervaloHoje();
-      [v, c, saldos, ultimos, fluxo] = await Promise.all([
+      [v, c, saldos, ultimos, fluxo, recebido] = await Promise.all([
         carregarLado('venda', hoje),
         carregarLado('compra', hoje),
         carregarSaldos(),
         carregarUltimos(),
-        carregarFluxo7Dias()
+        carregarFluxo7Dias(),
+        carregarRecebidoFiado(hoje)
       ]);
     } catch (err) {
       console.error('[Agro Bras] Falha ao carregar o resumo do dia', err);
@@ -162,7 +180,9 @@
     }
 
     const saldoDia = v.total - c.total;
-    const caixaHoje = v.mods.dinheiro + v.mods.pix + v.mods.cartao;
+    const caixaVendas = v.mods.dinheiro + v.mods.pix + v.mods.cartao;
+    const recebidoFiado = recebido.total;
+    const caixaHoje = caixaVendas + recebidoFiado;  // dinheiro que entrou hoje
     const agora = new Date();
     const horaAtual = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const dataHoje = UI().dataCurta(new Date().toISOString());
@@ -172,7 +192,7 @@
     const spV = svgLine(fluxo.vendas, 108, 46, 6);
     const spC = svgLine(fluxo.compras, 108, 46, 6);
     const labels = etiquetas7();
-    const pctCaixa = pct(caixaHoje, v.total);
+    const pctCaixa = pct(caixaVendas, v.total);  // liquidação das vendas do dia (sem o fiado)
 
     const filasUltimos = ultimos.length
       ? ultimos.map(function (p) {
@@ -258,9 +278,11 @@
       <div class="dk-card dk-fin">
         <div class="dk-fin-top">
           <div class="dk-fin-ico" style="background:var(--brand-soft);color:var(--brand-600)"><i data-lucide="wallet"></i></div>
-          <div><div class="dk-fin-lbl">Caixa recebido hoje</div><div class="dk-fin-sub">dinheiro + pix + cartão</div></div>
+          <div><div class="dk-fin-lbl">Caixa recebido hoje</div><div class="dk-fin-sub">vendas à vista + fiado recebido</div></div>
         </div>
         <div class="dk-fin-val num" style="color:var(--brand-600)">${UI().money(caixaHoje)}</div>
+        ${recebidoFiado > 0.005 ? `<div class="dk-fin-meta" style="margin-top:6px"><span>Vendas à vista</span><span class="num">${UI().money(caixaVendas)}</span></div>
+        <div class="dk-fin-meta"><span style="color:var(--brand-600)">Fiado recebido hoje</span><span class="num" style="color:var(--brand-600)">${UI().money(recebidoFiado)}</span></div>` : ''}
         ${v.total > 0 ? `<div class="dk-fin-bar"><span style="width:${pctCaixa}%;background:var(--brand)"></span></div>
         <div class="dk-fin-meta"><span>${pctCaixa}% das vendas liquidadas</span></div>` : ''}
       </div>

@@ -71,7 +71,12 @@
         UI().erro('Falha ao carregar dados de compra', v.error || f.error || p.error);
         return;
       }
-      cache = { vendedores: v.data || [], fornecedores: f.data || [], produtos: p.data || [], carregado: true };
+      cache = { vendedores: v.data || [], fornecedores: f.data || [], produtos: p.data || [], ultimoPreco: {}, carregado: true };
+      // Último preço de compra por produto — 1 consulta só (best-effort).
+      try {
+        const up = await UI().db().rpc('rel_ultimo_preco', { p_tipo: 'compra' });
+        if (!up.error && up.data) cache.ultimoPreco = up.data;
+      } catch (_) { /* segue sem dica de preço */ }
     }
     if (compra.vendedor_id && !cache.vendedores.some((v) => v.id === compra.vendedor_id)) {
       compra.vendedor_id = '';
@@ -131,6 +136,7 @@
             <input id="it-preco" class="input" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Preço un." />
             <button id="it-add" class="btn btn-primary">Adicionar</button>
           </div>
+          <div id="preco-hint" class="preco-hint"></div>
           ${cache.produtos.length ? '' : '<p class="aviso">Nenhum produto ativo. Cadastre em <strong>Cadastros → Produtos</strong>.</p>'}
           <div id="itens-lista" class="itens-lista"></div>
         </section>
@@ -172,8 +178,9 @@
       items: cache.produtos.map((p) => ({
         id: p.id, label: p.nome, sub: p.unidade, code: p.codigo
       })),
-      // Ao escolher o produto, pula direto para a quantidade (agiliza a compra).
-      onChange: () => { const q = main.querySelector('#it-qtd'); if (q) q.focus(); },
+      // Ao escolher o produto, pula direto para a quantidade e mostra o
+      // último preço de compra como dica clicável.
+      onChange: (id) => { const q = main.querySelector('#it-qtd'); if (q) q.focus(); mostrarPrecoHint(id); },
       onEnterEmpty: irParaPagamento
     });
 
@@ -332,6 +339,18 @@
     } catch (err) { UI().erro('Não foi possível abrir o pedido', err); pintar(); }
   }
 
+  // Mostra "último preço: R$ X · dd/mm" ao lado do preço (clicável p/ preencher).
+  function mostrarPrecoHint(prodId) {
+    const el = main.querySelector('#preco-hint');
+    if (!el) return;
+    const up = prodId && cache.ultimoPreco ? cache.ultimoPreco[prodId] : null;
+    if (!up) { el.innerHTML = ''; return; }
+    const preco = Number(up.preco);
+    el.innerHTML = `último preço: <button type="button" class="preco-hint-btn">${UI().money(preco)}</button> <span class="muted">· ${UI().dataCurta(up.data)}</span>`;
+    const b = el.querySelector('.preco-hint-btn');
+    if (b) b.onclick = () => { const pi = main.querySelector('#it-preco'); if (pi) { pi.value = preco; pi.focus(); pi.select(); } };
+  }
+
   function adicionarItem() {
     const prodId = cbProduto ? cbProduto.get() : '';
     const qtd = parseFloat(main.querySelector('#it-qtd').value);
@@ -344,6 +363,7 @@
     cbProduto.clear();
     main.querySelector('#it-qtd').value = '';
     main.querySelector('#it-preco').value = '';
+    mostrarPrecoHint('');
     cbProduto.focus();
     renderItens();
     atualizarTotalRodape();
