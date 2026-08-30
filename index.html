@@ -176,6 +176,7 @@
         <a class="nav-link" data-route="inicio"  href="#/inicio"><i data-lucide="layout-dashboard"></i> <span>Início</span></a>
         <a class="nav-link" data-route="vendas"  href="#/vendas"><i data-lucide="shopping-bag"></i> <span>Vendas</span></a>
         <a class="nav-link dono-only" data-route="compras" href="#/compras"><i data-lucide="truck"></i> <span>Compras</span></a>
+        <a class="nav-link dono-only" data-route="fechamento" href="#/fechamento"><i data-lucide="calendar-check"></i> <span>Fechamento</span></a>
       </nav>
 
       <div class="nav-label">Gestão</div>
@@ -207,7 +208,7 @@
         </div>
         <div class="top-actions">
           <button id="install-btn" class="btn btn-ghost btn-sm hidden"><i data-lucide="download"></i> Instalar</button>
-          <a href="#/compras" class="btn btn-ghost dono-only"><i data-lucide="truck"></i> Nova compra</a>
+          <a href="#/compras" class="btn btn-ghost dono-only so-pc"><i data-lucide="truck"></i> Nova compra</a>
           <a href="#/vendas" class="btn btn-primary"><i data-lucide="plus"></i> Nova venda <kbd class="kbd-topbar">F2</kbd></a>
         </div>
       </header>
@@ -216,6 +217,15 @@
   </div>
 
   <div id="scrim" class="scrim"></div>
+
+  <!-- Barra inferior: navegação de polegar no celular. Some no PC. -->
+  <nav id="tabbar" class="tabbar" aria-label="Navegação">
+    <a class="tabbar-link" data-route="inicio" href="#/inicio"><i data-lucide="layout-dashboard"></i><span>Início</span></a>
+    <a class="tabbar-link" data-route="vendas" href="#/vendas"><i data-lucide="shopping-bag"></i><span>Vendas</span></a>
+    <a class="tabbar-link dono-only" data-route="compras" href="#/compras"><i data-lucide="truck"></i><span>Compras</span></a>
+    <a class="tabbar-link dono-only" data-route="fechamento" href="#/fechamento"><i data-lucide="calendar-check"></i><span>Boletos</span></a>
+    <a class="tabbar-link" data-route="relatorios" href="#/relatorios"><i data-lucide="bar-chart-3"></i><span>Relatórios</span></a>
+  </nav>
 
   <!-- Área isolada para impressão térmica 80mm (preenchida sob demanda) -->
   <div id="area-impressao"></div>
@@ -234,6 +244,7 @@
   <script src="./js/cadastros.js"></script>
   <script src="./js/vendas.js"></script>
   <script src="./js/compras.js"></script>
+  <script src="./js/fechamento.js"></script>
   <script src="./js/dashboard.js"></script>
   <script src="./js/relatorios.js"></script>
 </body>

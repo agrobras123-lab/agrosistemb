@@ -13,6 +13,7 @@
   --cinza-texto:  #64748B;   /* slate-500 */
   --texto:        #1E293B;   /* slate-800 */
   --danger:       #DC2626;
+  --erro:         #DC2626;   /* alias usado em botões de excluir */
   --warn:         #D97706;
   --pix:          #8B5CF6;
   --blue:         #0284C7;
@@ -384,6 +385,7 @@ body.locked { overflow: hidden; }
 
 /* ---- Botões -------------------------------------------------------- */
 .btn {
+  text-decoration: none;
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 10px 16px;
@@ -415,6 +417,9 @@ body.locked { overflow: hidden; }
   margin-left: 4px; font-family: inherit; font-size: .68rem; font-weight: 700;
   background: rgba(255,255,255,.25); color: #fff; border-radius: 5px; padding: 1px 6px; vertical-align: middle;
 }
+
+/* Rótulo alternativo dos botões de ação: longo no PC, curto no celular */
+.rot-curto { display: none; }
 
 /* ---- Inputs -------------------------------------------------------- */
 .input, textarea {
@@ -1116,3 +1121,262 @@ textarea { resize: vertical; }
   }
   #splash .fruta, #splash .copa { animation: none; }
 }
+
+/* =====================================================================
+ * FECHAMENTO EM BOLETO (semana do cliente)
+ * ===================================================================== */
+.fc-saldo { margin-top: 10px; font-size: .92rem; color: var(--cinza-texto); }
+
+.fc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fc-chip {
+  border: 1px solid var(--cinza-borda); background: #fff; color: var(--texto);
+  border-radius: 999px; padding: 9px 15px; font-size: .88rem; font-weight: 600;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.fc-chip.ativo { background: var(--verde-bg); border-color: var(--verde); color: var(--verde); }
+
+.fc-lista-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.fc-lista-acoes { margin-left: auto; display: flex; gap: 8px; }
+
+/* Linha da venda com caixa de marcar — o coração da tela: é aqui que o dono
+   escolhe QUAIS vendas entram no boleto. Linha inteira é área de toque. */
+.fc-venda {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  border: 1px solid var(--cinza-borda); background: #fff; border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 8px; font-family: inherit; color: var(--texto);
+  transition: border-color .12s, background .12s, box-shadow .12s;
+}
+.fc-venda:last-child { margin-bottom: 0; }
+.fc-venda.marcada { border-color: var(--verde); background: var(--verde-bg); box-shadow: inset 0 0 0 1px var(--verde); }
+.fc-check {
+  width: 26px; height: 26px; flex: none; border-radius: 8px;
+  border: 2px solid var(--cinza-borda); background: #fff;
+  display: grid; place-items: center; font-weight: 800; color: #fff; font-size: .95rem;
+}
+.fc-venda.marcada .fc-check { background: var(--verde); border-color: var(--verde); }
+.fc-venda-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fc-venda-top { font-weight: 700; font-size: .95rem; }
+.fc-venda-data { font-weight: 500; color: var(--cinza-texto); font-size: .84rem; }
+.fc-venda-sub { font-size: .82rem; color: var(--cinza-texto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-venda-valor { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.fc-resumo-modal { background: var(--cinza-bg); border-radius: 12px; padding: 12px 14px; }
+.fc-resumo-modal .cp-row { padding: 4px 0; }
+.fc-resumo-total { border-top: 1px solid var(--cinza-borda); margin-top: 6px; padding-top: 8px !important; font-size: 1.05rem; }
+.fc-resumo-total strong { color: var(--verde); }
+
+.fc-fechs { display: flex; flex-direction: column; gap: 8px; }
+.fc-fech {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  border: 1px solid var(--cinza-borda); background: #fff; border-radius: 12px;
+  padding: 13px 15px; font-family: inherit; color: var(--texto);
+  box-shadow: var(--sombra); transition: border-color .12s, background .12s;
+}
+.fc-fech:hover { border-color: var(--verde-claro); background: #fafdfb; }
+.fc-fech-l { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.fc-fech-top { font-weight: 700; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-fech-sub { font-size: .82rem; color: var(--cinza-texto); }
+.fc-fech-v { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fc-tag { font-size: .7rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; margin-left: 6px; white-space: nowrap; }
+.fc-vencido { background: #fdecea; color: var(--danger); }
+.fc-avencer { background: var(--verde-bg); color: var(--verde); }
+
+.fc-det-vendas { max-height: 40vh; overflow: auto; }
+.fc-det-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.fc-det-acoes .btn { flex: 1 1 140px; justify-content: center; }
+
+/* Selo da venda copiada (clonagem) */
+.clone-flag {
+  background: var(--verde-bg); border: 1px solid var(--verde-claro); color: var(--verde);
+  font-weight: 700; font-size: .82rem; padding: 5px 12px; border-radius: 999px;
+}
+
+/* =====================================================================
+ * CELULAR — camada de uso com o polegar
+ * ---------------------------------------------------------------------
+ * O app é usado em pé, no box, com uma mão só. Aqui vai tudo que faz o
+ * celular parar de parecer "tela de PC encolhida":
+ *   • barra de navegação embaixo (onde o polegar alcança)
+ *   • alvo de toque mínimo de 46px em botão, opção e linha de lista
+ *   • campo com 16px (abaixo disso o iPhone dá zoom e trava o layout)
+ *   • modal virando folha que sobe de baixo
+ *   • resposta ao toque (afunda) em vez de hover, que no toque "gruda"
+ *   • respeito à faixa do iPhone (safe-area) em tudo que fica colado embaixo
+ * ===================================================================== */
+
+/* ---- Barra inferior (só no celular) -------------------------------- */
+.tabbar { display: none; }
+
+@media (max-width: 820px) {
+  .tabbar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
+    background: rgba(255,255,255,.94);
+    backdrop-filter: blur(14px) saturate(1.1);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -6px 20px -12px rgba(12,40,24,.35);
+  }
+  body.locked .tabbar { display: none; }
+  /* gaveta e scrim acima da barra de baixo (senão a barra flutua por cima) */
+  .sidebar { z-index: 45; }
+  .scrim { z-index: 42; }
+  .tabbar-link {
+    flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px; padding: 9px 2px 8px;
+    text-decoration: none; color: var(--ink-3); font-size: .66rem; font-weight: 700;
+    position: relative; transition: color .14s;
+  }
+  .tabbar-link svg { width: 21px; height: 21px; }
+  .tabbar-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .tabbar-link.active { color: var(--brand-600); }
+  .tabbar-link.active::before {
+    content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 30px; height: 3px; border-radius: 0 0 4px 4px; background: var(--brand);
+  }
+  .tabbar-link:active { background: var(--brand-soft); }
+
+  /* Espaço para o conteúdo não sumir atrás da barra */
+  .view { padding: 14px 14px calc(78px + env(safe-area-inset-bottom)); }
+  /* O rodapé do fluxo (Total + Confirmar) cobre a barra: numa venda, o que
+     importa é fechar a venda, não navegar. */
+  .fluxo-rodape { z-index: 40; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  body:has(.fluxo-rodape) .tabbar { display: none; }
+  .fluxo { padding-bottom: 40px; }
+
+  /* ---- Toque: tamanho e resposta ----------------------------------- */
+  .btn { min-height: 46px; padding: 12px 16px; border-radius: 12px; }
+  .btn-sm { min-height: 40px; padding: 8px 12px; font-size: .86rem; }
+  .btn:active, .fc-chip:active, .pg-forma:active, .fc-venda:active,
+  .fc-fech:active, .busca-item:active, .subnav-tab:active { transform: scale(.985); }
+  .icon-btn { min-width: 44px; min-height: 44px; }
+
+  /* 16px é o mínimo que o iOS aceita sem dar zoom ao focar o campo */
+  .input, textarea, select, .combobox-input { font-size: 16px; padding: 13px 14px; border-radius: 12px; }
+  .campo > span { font-size: .84rem; }
+  input[type="date"] { min-height: 48px; }
+
+  /* ---- Cartões e espaçamento --------------------------------------- */
+  .card { padding: 16px 14px; border-radius: 16px; }
+  .bloco { margin-bottom: 12px; }
+  .subnav { padding: 5px; gap: 3px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+  .subnav::-webkit-scrollbar { display: none; }
+  .subnav-tab { white-space: nowrap; padding: 11px 14px; font-size: .88rem; }
+
+  /* ---- Topbar enxuta ------------------------------------------------ */
+  .so-pc { display: none !important; }
+  .topbar { padding: 10px 12px; gap: 10px; }
+  #topbar-title { font-size: 1.05rem; }
+  .top-actions .btn { padding: 11px 14px; }
+
+  /* ---- Atalhos de teclado não existem no celular -------------------- */
+  kbd, .kbd-topbar, .btn-acao-topo kbd { display: none !important; }
+
+  /* ---- Combobox: opção grande e lista que cabe acima do teclado ----- */
+  .combobox-list { max-height: 44vh; border-radius: 12px; }
+  .combobox-option { padding: 13px 14px; min-height: 48px; font-size: .95rem; }
+  .combobox-option .cb-sub { font-size: .78rem; }
+
+  /* ---- Itens da venda: cartão de 2 linhas, botões de verdade -------- */
+  .item-add { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .item-add #cb-produto, .item-add #it-add { grid-column: 1 / -1; }
+  .item-add #it-add { min-height: 50px; font-size: 1rem; }
+  .item-linha { flex-wrap: wrap; gap: 8px 10px; padding: 12px 0; }
+  .item-linha .item-info { flex: 1 1 60%; }
+  .item-linha .item-valor { flex: 0 0 auto; font-size: 1.05rem; }
+  .item-linha .btn-edit-item, .item-linha .btn-del {
+    flex: 1 1 40%; min-height: 42px; justify-content: center; margin: 0;
+  }
+  .item-linha .btn-del { border: 1px solid #f0d3d0 !important; border-radius: 9px; }
+  .input-sm-qtd { width: 90px !important; }
+  .input-sm-preco { width: 110px !important; }
+
+  /* ---- Pagamento: telha grande, 2 por linha ------------------------- */
+  .pg-formas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pg-forma { justify-content: center; min-height: 56px; font-size: 1rem; padding: 12px; }
+  .pg-total, .pg-escolhido { font-size: 1.1rem; }
+
+  /* ---- Busca / listas ---------------------------------------------- */
+  .busca-item { padding: 14px; min-height: 56px; }
+  .busca-excluir { min-width: 48px; min-height: 48px; }
+  .acoes-topo { gap: 8px; flex-wrap: nowrap; }
+  .btn-acao-topo { min-width: 0; flex: 1 1 0; padding: 11px 6px; font-size: .86rem; }
+  .rot-longo { display: none; }
+  .rot-curto { display: inline; }
+
+  /* ---- Fechamento --------------------------------------------------- */
+  .fc-chips-rolagem {
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    margin: 0 -14px; padding: 2px 14px 6px; scrollbar-width: none;
+  }
+  .fc-chips-rolagem::-webkit-scrollbar { display: none; }
+  .fc-chips-rolagem .fc-chip { flex: none; }
+  .fc-venda { padding: 14px; min-height: 62px; }
+  .fc-check { width: 28px; height: 28px; }
+  .fc-fech { padding: 14px; }
+  .fc-chip { min-height: 42px; padding: 10px 16px; }
+  .fc-lista-acoes { margin-left: 0; width: 100%; }
+  .fc-lista-acoes .btn { flex: 1; justify-content: center; }
+  .fc-det-acoes .btn { flex: 1 1 100%; }
+
+  /* ---- Modal vira folha que sobe de baixo --------------------------- */
+  .modal-backdrop { padding: 0; align-items: flex-end; }
+  .modal {
+    max-width: none; border-radius: 22px 22px 0 0; max-height: 92vh;
+    display: flex; flex-direction: column; animation: sheetIn .24s cubic-bezier(.22,.9,.3,1);
+  }
+  .modal-head {
+    position: sticky; top: 0; background: #fff; z-index: 2;
+    border-radius: 22px 22px 0 0; padding: 18px 18px 14px;
+  }
+  .modal-head::before {
+    content: ""; position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+    width: 40px; height: 4px; border-radius: 999px; background: var(--cinza-borda);
+  }
+  .modal-head h3 { font-size: 1.05rem; }
+  .modal-head .modal-x { min-width: 44px; min-height: 44px; }
+  .modal-body { overflow: auto; -webkit-overflow-scrolling: touch; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .form-actions { flex-direction: column-reverse; gap: 8px; }
+  .form-actions .btn { width: 100%; justify-content: center; }
+  .busca-result { max-height: 58vh; }
+
+  /* ---- Gaveta lateral ---------------------------------------------- */
+  .sidebar { overscroll-behavior: contain; padding-top: calc(20px + env(safe-area-inset-top)); }
+  .nav-link { padding: 13px 12px; font-size: .95rem; }
+
+  /* ---- Toast acima da barra de baixo -------------------------------- */
+  .toast { bottom: calc(84px + env(safe-area-inset-bottom)); border-radius: 12px; }
+  /* com modal aberto o aviso vai para o topo, senão tapa o botão da folha */
+  body:has(.modal-backdrop) .toast { bottom: auto; top: calc(12px + env(safe-area-inset-top)); }
+}
+
+@keyframes sheetIn { from { transform: translateY(100%); } }
+
+/* Numa tela bem estreita, as telhas de pagamento e os filtros viram 1 coluna */
+@media (max-width: 400px) {
+  .pg-formas { grid-template-columns: 1fr; }
+  .filtros { grid-template-columns: 1fr; }
+}
+
+/* Aparelho sem mouse: nada de efeito de hover em lugar nenhum */
+@media (hover: none) {
+  .btn:hover { filter: none; transform: none; }
+  .btn-primary:hover { transform: none; }
+  .nav-link:hover { background: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal, .tabbar-link, .fc-venda, .fc-fech { animation: none !important; transition: none !important; }
+}
+
+/* Período na mão: fica fechado por padrão (os atalhos resolvem quase sempre) */
+.fc-datas { margin-top: 10px; }
+.fc-datas > summary {
+  cursor: pointer; font-size: .84rem; font-weight: 600; color: var(--cinza-texto);
+  padding: 8px 2px; list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.fc-datas > summary::-webkit-details-marker { display: none; }
+.fc-datas > summary::before { content: "▸"; font-size: .8rem; }
+.fc-datas[open] > summary::before { content: "▾"; }
+.fc-datas > summary:hover { color: var(--verde); }
+@media (max-width: 820px) { .fc-datas > summary { min-height: 44px; } }

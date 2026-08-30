@@ -41,6 +41,7 @@
       editId: null,            // id do pedido em edição (null = nova venda)
       editNumero: null,
       editUpdatedAt: null,     // atualizado_em lido ao abrir (trava otimista leve)
+      cloneDe: null,           // nº da venda copiada (só informativo, é venda NOVA)
       vendedor_id: sessionStorage.getItem(VEND_KEY) || '',  // lembra o vendedor
       cliente_id: '',          // '' = ainda não escolhido; 'AVULSO' = avulsa
       itens: [],               // {produto_id, descricao, unidade, quantidade, preco_unit}
@@ -101,16 +102,21 @@
     main.innerHTML = `
       <div class="fluxo">
         <div class="acoes-topo">
-          ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-outline-verde btn-acao-topo">🔍 Buscar / editar venda <kbd>F3</kbd></button>` : ''}
-          <button id="btn-reimprimir" class="btn btn-outline-verde btn-acao-topo">🖨 Reimprimir cupom <kbd>F7</kbd></button>
+          ${AGB.isDono() ? `<button id="btn-buscar" class="btn btn-outline-verde btn-acao-topo">🔍 <span class="rot-longo">Buscar / editar venda</span><span class="rot-curto">Buscar</span> <kbd>F3</kbd></button>` : ''}
+          <button id="btn-clonar" class="btn btn-outline-verde btn-acao-topo">⧉ <span class="rot-longo">Clonar venda</span><span class="rot-curto">Clonar</span> <kbd>F4</kbd></button>
+          <button id="btn-reimprimir" class="btn btn-outline-verde btn-acao-topo">🖨 <span class="rot-longo">Reimprimir cupom</span><span class="rot-curto">Cupom</span> <kbd>F7</kbd></button>
         </div>
+        ${venda.cloneDe ? `<div class="fluxo-top">
+          <span class="clone-flag">⧉ Cópia da venda nº ${venda.cloneDe} — confira os itens antes de confirmar</span>
+          <button id="btn-limpar-clone" class="btn btn-ghost btn-sm">Começar do zero</button>
+        </div>` : ''}
         ${venda.editId ? `<div class="fluxo-top">
           <span class="edit-flag">✎ Editando venda nº ${venda.editNumero}</span>
           <button id="btn-cancelar-edit" class="btn btn-ghost btn-sm">Cancelar edição</button>
           <button id="btn-excluir-edit" class="btn btn-sm" style="color:var(--erro);border:1px solid var(--erro)">🗑 Excluir esta venda</button>
         </div>` : ''}
         <div class="fluxo-head">
-          <h2>${venda.editId ? 'Editar venda' : 'Nova venda'}</h2>
+          <h2>${venda.editId ? 'Editar venda' : venda.cloneDe ? 'Nova venda (cópia)' : 'Nova venda'}</h2>
           ${etapasHTML(1)}
         </div>
 
@@ -201,6 +207,10 @@
     if (btnBuscar) btnBuscar.onclick = () => abrirBusca('editar');
     const btnReimp = main.querySelector('#btn-reimprimir');
     if (btnReimp) btnReimp.onclick = () => abrirBusca('reimprimir');
+    const btnClonar = main.querySelector('#btn-clonar');
+    if (btnClonar) btnClonar.onclick = () => abrirBusca('clonar');
+    const limparClone = main.querySelector('#btn-limpar-clone');
+    if (limparClone) limparClone.onclick = () => { novaVenda(); pintar(); };
     main.querySelector('#btn-novo-cliente').onclick = abrirNovoCliente;
     const cancEdit = main.querySelector('#btn-cancelar-edit');
     if (cancEdit) cancEdit.onclick = () => { novaVenda(); pintar(); };
@@ -216,14 +226,17 @@
     }, 30);
   }
 
-  // ---- Busca / edição / reimpressão ---------------------------------
+  // ---- Busca / edição / clonagem / reimpressão ----------------------
   // modo: 'editar' (padrão) abre o pedido para edição e mostra botão excluir.
+  //       'clonar'     copia o pedido para uma venda NOVA (não mexe no original).
   //       'reimprimir' apenas reimprime o cupom do pedido escolhido.
+  const TITULO_BUSCA = {
+    editar: 'Buscar venda', clonar: 'Clonar venda', reimprimir: 'Reimprimir cupom de venda'
+  };
   function abrirBusca(modo) {
     modo = modo || 'editar';
-    const reimpr = modo === 'reimprimir';
     const m = UI().openModal({
-      titulo: reimpr ? 'Reimprimir cupom de venda' : 'Buscar venda', largura: '520px',
+      titulo: TITULO_BUSCA[modo] || TITULO_BUSCA.editar, largura: '520px',
       corpo: `
         <div class="busca-bar">
           <input id="busca-input" class="input" type="text" placeholder="Nº do pedido ou nome do cliente" />
@@ -242,6 +255,7 @@
   async function buscar(m, termo, modo) {
     modo = modo || 'editar';
     const reimpr = modo === 'reimprimir';
+    const ico = modo === 'reimprimir' ? '🖨' : modo === 'clonar' ? '⧉' : '✏️';
     const db = UI().db();
     const box = m.body.querySelector('#busca-result');
     box.innerHTML = '<div class="muted">Buscando...</div>';
@@ -262,17 +276,18 @@
     box.innerHTML = data.map((p) => `
       <div class="busca-row">
         <button class="busca-item" data-id="${p.id}">
-          <span>${reimpr ? '🖨' : '✏️'} <strong>Nº ${p.numero}</strong> · ${UI().dataCurta(p.data)} · ${UI().esc((p.clientes && p.clientes.nome) || 'Avulso')}</span>
+          <span>${ico} <strong>Nº ${p.numero}</strong> · ${UI().dataCurta(p.data)} · ${UI().esc((p.clientes && p.clientes.nome) || 'Avulso')}</span>
           <span>${UI().money(p.total)}</span>
         </button>
-        ${reimpr ? '' : `<button class="busca-excluir" data-id="${p.id}" data-num="${p.numero}" title="Excluir venda">🗑</button>`}
+        ${modo === 'editar' ? `<button class="busca-excluir" data-id="${p.id}" data-num="${p.numero}" title="Excluir venda">🗑</button>` : ''}
       </div>`).join('');
     box.querySelectorAll('.busca-item').forEach((b) => b.onclick = () => {
       m.close();
       if (reimpr) reimprimirPedido(b.dataset.id);
+      else if (modo === 'clonar') carregarClone(b.dataset.id);
       else carregarEdicao(b.dataset.id);
     });
-    if (!reimpr) box.querySelectorAll('.busca-excluir').forEach((b) => b.onclick = () => excluirVenda(b.dataset.id, b.dataset.num, m));
+    if (modo === 'editar') box.querySelectorAll('.busca-excluir').forEach((b) => b.onclick = () => excluirVenda(b.dataset.id, b.dataset.num, m));
   }
 
   // Reconstrói os dados do cupom a partir do banco e reimprime.
@@ -308,6 +323,51 @@
         observacao: ped.observacao
       });
     } catch (err) { UI().erro('Não foi possível reimprimir o cupom', err); }
+  }
+
+  // Clonagem: traz cliente, vendedor, itens e observação de uma venda antiga
+  // para uma venda NOVA. Não copia pagamentos (a forma se decide na hora) e
+  // não toca no pedido original — o número novo sai do banco ao confirmar.
+  async function carregarClone(id) {
+    const db = UI().db();
+    main.innerHTML = `<div class="muted" style="padding:18px">Copiando venda...</div>`;
+    try {
+      const { data: ped, error } = await db.from('pedidos_venda')
+        .select('id,numero,vendedor_id,cliente_id,observacao').eq('id', id).single();
+      if (error) throw error;
+      const { data: itens, error: eIt } = await db.from('itens_venda')
+        .select('produto_id,quantidade,preco_unit,produtos(nome,unidade,ativo)').eq('pedido_id', id);
+      if (eIt) throw eIt;
+
+      const anterior = venda ? venda.vendedor_id : '';
+      novaVenda();
+      venda.cloneDe = ped.numero;
+      // vendedor da venda copiada só se ainda estiver ativo; senão mantém o atual
+      venda.vendedor_id = cache.vendedores.some((v) => v.id === ped.vendedor_id)
+        ? ped.vendedor_id : (anterior || venda.vendedor_id);
+      // cliente inativo/apagado do cache: deixa em branco para o usuário escolher
+      venda.cliente_id = ped.cliente_id
+        ? (cache.clientes.some((c) => c.id === ped.cliente_id) ? ped.cliente_id : '')
+        : 'AVULSO';
+      venda.observacao = ped.observacao || '';
+
+      // Produto desativado depois da venda original não pode ser relançado.
+      const fora = [];
+      venda.itens = (itens || []).filter((i) => {
+        const ok = cache.produtos.some((p) => p.id === i.produto_id);
+        if (!ok) fora.push(i.produtos ? i.produtos.nome : 'produto removido');
+        return ok;
+      }).map((i) => ({
+        produto_id: i.produto_id,
+        descricao: i.produtos ? i.produtos.nome : '(produto removido)',
+        unidade: i.produtos ? i.produtos.unidade : '',
+        quantidade: Number(i.quantidade), preco_unit: Number(i.preco_unit)
+      }));
+
+      pintar();
+      if (fora.length) UI().toast('Fora da cópia (produto inativo): ' + fora.join(', '), 'erro');
+      else UI().toast(`Venda nº ${ped.numero} copiada. Ajuste o que precisar e confirme.`);
+    } catch (err) { UI().erro('Não foi possível copiar a venda', err); pintar(); }
   }
 
   async function carregarEdicao(id) {
@@ -718,13 +778,36 @@
           </div>
           <div class="ok-acoes">
             <button id="imprimir" class="btn btn-primary btn-grande">🖨 Imprimir cupom <kbd>Enter</kbd></button>
+            <button id="repetir" class="btn btn-outline-verde btn-grande">⧉ Repetir esta venda</button>
             <button id="nova" class="btn btn-ghost btn-grande">Nova venda <kbd>F2</kbd></button>
           </div>
         </div>
       </div>`;
     main.querySelector('#imprimir').onclick = () => AGB.cupom.imprimir(dadosCupom());
+    main.querySelector('#repetir').onclick = () => repetirVenda();
     main.querySelector('#nova').onclick = () => { novaVenda(); pintar(); };
     setTimeout(() => { const b = main.querySelector('#imprimir'); if (b) b.focus(); }, 30);
+  }
+
+  // "Repetir esta venda": monta na hora outra venda igual à que acabou de ser
+  // gravada (mesmo cliente, mesmos itens) — o caso do cliente que leva a mesma
+  // carga todo dia. Os pagamentos começam zerados de novo.
+  function repetirVenda() {
+    const origem = {
+      numero: venda.resultado ? venda.resultado.numero : venda.cloneDe,
+      vendedor_id: venda.vendedor_id,
+      cliente_id: venda.cliente_id,
+      observacao: venda.observacao,
+      itens: venda.itens.map((i) => ({ ...i }))
+    };
+    novaVenda();
+    venda.cloneDe = origem.numero;
+    venda.vendedor_id = origem.vendedor_id;
+    venda.cliente_id = origem.cliente_id;
+    venda.observacao = origem.observacao;
+    venda.itens = origem.itens;
+    pintar();
+    UI().toast('Cópia pronta. Ajuste o que precisar e confirme.');
   }
 
   function dadosCupom() {
@@ -791,6 +874,10 @@
       else location.hash = '#/vendas';
     },
     busca: () => abrirBusca('editar'),
+    clonar: function () {
+      if ((location.hash || '').includes('vendas')) abrirBusca('clonar');
+      else { location.hash = '#/vendas'; setTimeout(() => abrirBusca('clonar'), 260); }
+    },
     reimprimir: () => abrirBusca('reimprimir')
   };
 

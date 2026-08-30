@@ -283,6 +283,9 @@
           <div class="receber-formas">
             ${UI().MOD_ORDEM.map((mm) => `<button type="button" class="btn btn-outline-verde btn-sm" data-receber="${mm}">${UI().MOD_LABEL[mm]}</button>`).join('')}
           </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-fechar-semana" style="margin-top:8px;width:100%;justify-content:center">
+            📅 Fechar as vendas em aberto num boleto
+          </button>
         </div>` : ''}
         <form id="saldo-form">
           <label class="campo"><span>Valor (R$)</span>
@@ -350,6 +353,12 @@
     });
 
     // Receber pagamento de fiado (crédito COM forma → entra no caixa do dia).
+    const btnFechar = m.body.querySelector('#btn-fechar-semana');
+    if (btnFechar) btnFechar.onclick = () => {
+      m.close();
+      if (window.AGB && AGB.fechamento) AGB.fechamento.abrirPara(reg.id);
+      else location.hash = '#/fechamento';
+    };
     m.body.querySelectorAll('[data-receber]').forEach((b) => b.onclick = () => {
       const valor = parseFloat((m.body.querySelector('#rec-valor') || {}).value);
       const mod = b.dataset.receber;

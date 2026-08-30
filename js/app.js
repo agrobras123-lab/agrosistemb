@@ -8,7 +8,8 @@
 (function () {
   const main = document.getElementById('view');
   const titleEl = document.getElementById('topbar-title');
-  const navLinks = document.querySelectorAll('.nav-link');
+  // links de navegação: menu lateral (PC) + barra inferior (celular)
+  const navLinks = document.querySelectorAll('.nav-link, .tabbar-link');
   const sidebar = document.getElementById('sidebar');
   const scrim = document.getElementById('scrim');
 
@@ -20,12 +21,13 @@
     inicio:     { titulo: 'Início',      etapa: 4, desc: 'Totais do dia: vendas e compras por modalidade, saldo do dia e contagem de pedidos.' },
     vendas:     { titulo: 'Vendas',      etapa: 2, desc: 'Fluxo de venda: vendedor → cliente/avulso → itens → pagamento → cupom 80mm.' },
     compras:    { titulo: 'Compras',     etapa: 3, desc: 'Fluxo de compra: fornecedor → itens → pagamento → cupom 80mm.' },
+    fechamento: { titulo: 'Fechamento',  etapa: 6, desc: 'Junta as vendas em aberto de um cliente num boleto só, com vencimento escolhido.' },
     cadastros:  { titulo: 'Cadastros',   etapa: 1, desc: 'Clientes, fornecedores, produtos e vendedores. Ajuste de saldo (débito/crédito/zeramento).' },
     relatorios: { titulo: 'Relatórios',  etapa: 5, desc: 'Vendas, Compras, Clientes, Fornecedores e Produtos. Todos imprimíveis.' }
   };
   const DEFAULT_ROUTE = 'inicio';
   // Rotas exclusivas do DONO (operador é barrado aqui).
-  const DONO_ROUTES = { compras: true, cadastros: true };
+  const DONO_ROUTES = { compras: true, cadastros: true, fechamento: true };
   const views = {};
 
   function ehDono() { return !!(window.AGB && AGB.isDono && AGB.isDono()); }
@@ -133,6 +135,7 @@
   // ---- Atalhos de teclado --------------------------------------------
   // F2 → nova venda (ou nova compra se estiver na aba Compras)
   // F3 → buscar/editar (venda na aba Vendas; compra na aba Compras)
+  // F4 → clonar venda (copia uma venda antiga para uma venda nova)
   // F7 → reimprimir cupom (venda/compra conforme a aba)
   window.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -146,6 +149,10 @@
     } else if (e.key === 'F3') {
       if (r === 'vendas' && dono) { e.preventDefault(); if (AGB.vendas) AGB.vendas.busca(); }
       else if (r === 'compras' && dono) { e.preventDefault(); if (AGB.compras) AGB.compras.busca(); }
+    } else if (e.key === 'F4') {
+      if (r === 'compras') return;          // lá os atalhos são de compra
+      e.preventDefault();
+      if (AGB.vendas) AGB.vendas.clonar();
     } else if (e.key === 'F7') {
       if (r === 'vendas') { e.preventDefault(); if (AGB.vendas) AGB.vendas.reimprimir(); }
       else if (r === 'compras' && dono) { e.preventDefault(); if (AGB.compras) AGB.compras.reimprimir(); }
