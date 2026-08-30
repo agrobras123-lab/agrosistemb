@@ -332,6 +332,11 @@
           <div><div class="dk-qt">Receber fiado</div><div class="dk-qd">Baixar saldo de cliente</div></div>
           <span class="dk-qchev"><i data-lucide="chevron-right"></i></span>
         </a>
+        <a class="dk-qrow dono-only" href="#/fechamento">
+          <div class="dk-qico" style="background:var(--brand-soft);color:var(--brand-600)"><i data-lucide="calendar-check"></i></div>
+          <div><div class="dk-qt">Fechar semana</div><div class="dk-qd">Juntar as vendas num boleto só</div></div>
+          <span class="dk-qchev"><i data-lucide="chevron-right"></i></span>
+        </a>
       </div>
     </aside>
   </div>
@@ -343,11 +348,18 @@
   }
 
   // ---- Backup (chamado pelo botão da sidebar) ---------------------------
+  // Ordem FK-safe: pais antes dos filhos. fechamentos_boleto vem ANTES de
+  // pagamentos_venda porque o pagamento aponta para o fechamento.
   const TABELAS_BACKUP = [
     'clientes', 'fornecedores', 'vendedores', 'produtos',
-    'pedidos_venda', 'itens_venda', 'pagamentos_venda',
+    'pedidos_venda', 'itens_venda', 'fechamentos_boleto', 'pagamentos_venda',
     'pedidos_compra', 'itens_compra', 'pagamentos_compra', 'ajustes_saldo'
   ];
+  // Tabelas que podem não existir num banco antigo (antes do fechamento.sql).
+  // Sem isso, um banco não migrado quebraria o backup inteiro.
+  const TABELAS_OPCIONAIS = { fechamentos_boleto: true };
+  const tabelaInexistente = (err) =>
+    /does not exist|could not find the table|schema cache/i.test((err && err.message) || '');
 
   async function exportarBackup(btn) {
     const original = btn ? btn.innerHTML : '';
@@ -357,7 +369,13 @@
       const dump = { app: 'Agro Bras Hortifruti', exportado_em: new Date().toISOString(), tabelas: {} };
       for (const t of TABELAS_BACKUP) {
         const { data, error } = await db.from(t).select('*');
-        if (error) throw error;
+        if (error) {
+          if (TABELAS_OPCIONAIS[t] && tabelaInexistente(error)) {
+            console.warn('[Agro Bras] tabela ausente no banco, fora do backup:', t);
+            continue;
+          }
+          throw error;
+        }
         dump.tabelas[t] = data || [];
       }
       const totalLinhas = Object.values(dump.tabelas).reduce((s, a) => s + a.length, 0);
@@ -418,7 +436,13 @@
           for (let i = 0; i < rows.length; i += 500) {  // em lotes p/ não estourar payload
             const chunk = rows.slice(i, i + 500);
             const { error } = await db.from(t).upsert(chunk, { onConflict: 'id' });
-            if (error) throw error;
+            if (error) {
+              if (TABELAS_OPCIONAIS[t] && tabelaInexistente(error)) {
+                console.warn('[Agro Bras] tabela ausente no banco, fora da restauração:', t);
+                break;
+              }
+              throw error;
+            }
             gravados += chunk.length;
           }
         }

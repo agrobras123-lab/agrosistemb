@@ -99,8 +99,8 @@
       <div class="fluxo">
         ${totalAPagar > 0 ? `<div class="dk-apagar"><i data-lucide="receipt"></i><div><div class="dk-apagar-lbl">A pagar (fornecedores)</div><div class="dk-apagar-val num">${UI().money(totalAPagar)}</div></div></div>` : ''}
         <div class="acoes-topo">
-          <button id="btn-buscar" class="btn btn-outline-verde btn-acao-topo">🔍 Buscar / editar compra <kbd>F3</kbd></button>
-          <button id="btn-reimprimir" class="btn btn-outline-verde btn-acao-topo">🖨 Reimprimir cupom <kbd>F7</kbd></button>
+          <button id="btn-buscar" class="btn btn-outline-verde btn-acao-topo">🔍 <span class="rot-longo">Buscar / editar compra</span><span class="rot-curto">Buscar</span> <kbd>F3</kbd></button>
+          <button id="btn-reimprimir" class="btn btn-outline-verde btn-acao-topo">🖨 <span class="rot-longo">Reimprimir cupom</span><span class="rot-curto">Cupom</span> <kbd>F7</kbd></button>
         </div>
         ${compra.editId ? `<div class="fluxo-top">
           <span class="edit-flag">✎ Editando compra nº ${compra.editNumero}</span>

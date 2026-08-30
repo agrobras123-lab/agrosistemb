@@ -535,31 +535,61 @@
     gerar();
   }
 
+  // Colunas a receber: com fechamento (boleto da semana) quando o banco já tem
+  // a coluna; sem ela (pré-migração) cai no formato antigo, sem quebrar a tela.
+  const COLS_RECEBER_FECH = 'valor,vencimento,fechamento_id,fechamentos_boleto(numero),pedidos_venda(numero,clientes(nome))';
+  const COLS_RECEBER = 'valor,vencimento,pedidos_venda(numero,clientes(nome))';
+
   async function consultarBoletos(f) {
     const db = UI().db();
-    const [recv, pay] = await Promise.all([
-      db.from('pagamentos_venda').select('valor,vencimento,pedidos_venda(numero,clientes(nome))')
-        .eq('modalidade', 'boleto').not('vencimento', 'is', null)
-        .gte('vencimento', f.ini).lte('vencimento', f.fim)
-        .order('vencimento', { ascending: true }).limit(500),
+    const receberQuery = (cols) => db.from('pagamentos_venda').select(cols)
+      .eq('modalidade', 'boleto').not('vencimento', 'is', null)
+      .gte('vencimento', f.ini).lte('vencimento', f.fim)
+      .order('vencimento', { ascending: true }).limit(500);
+    let [recv, pay] = await Promise.all([
+      receberQuery(COLS_RECEBER_FECH),
       db.from('pagamentos_compra').select('valor,vencimento,pedidos_compra(numero,fornecedores(nome))')
         .eq('modalidade', 'boleto').not('vencimento', 'is', null)
         .gte('vencimento', f.ini).lte('vencimento', f.fim)
         .order('vencimento', { ascending: true }).limit(500)
     ]);
+    if (recv.error) recv = await receberQuery(COLS_RECEBER);
     if (recv.error) throw recv.error;
     if (pay.error) throw pay.error;
-    const receber = (recv.data || []).map((r) => ({
+    const receber = agruparFechamentos((recv.data || []).map((r) => ({
       vencimento: r.vencimento, valor: Number(r.valor),
       numero: r.pedidos_venda ? r.pedidos_venda.numero : null,
+      fechamento_id: r.fechamento_id || null,
+      fechamento_num: r.fechamentos_boleto ? r.fechamentos_boleto.numero : null,
       nome: (r.pedidos_venda && r.pedidos_venda.clientes && r.pedidos_venda.clientes.nome) || 'Avulso'
-    }));
+    })));
     const pagar = (pay.data || []).map((r) => ({
       vencimento: r.vencimento, valor: Number(r.valor),
       numero: r.pedidos_compra ? r.pedidos_compra.numero : null,
       nome: (r.pedidos_compra && r.pedidos_compra.fornecedores && r.pedidos_compra.fornecedores.nome) || '—'
     }));
     return { receber, pagar };
+  }
+
+  // Um fechamento vira UMA linha na agenda ("Fech. nº 7 · 6 vendas"), em vez de
+  // seis boletos soltos do mesmo cliente no mesmo dia.
+  function agruparFechamentos(rows) {
+    const grupos = new Map();
+    const saida = [];
+    rows.forEach((r) => {
+      if (!r.fechamento_id) { saida.push(r); return; }
+      const g = grupos.get(r.fechamento_id);
+      if (g) { g.valor += r.valor; g.qtd += 1; return; }
+      const novo = { ...r, qtd: 1 };
+      grupos.set(r.fechamento_id, novo);
+      saida.push(novo);
+    });
+    grupos.forEach((g) => {
+      g.label = 'Fech. nº ' + (g.fechamento_num != null ? g.fechamento_num : '—') +
+        ' · ' + g.qtd + (g.qtd === 1 ? ' venda' : ' vendas');
+      g.valor = UI().arred(g.valor);
+    });
+    return saida;
   }
 
   function statusVenc(venc) {
@@ -576,11 +606,11 @@
     const linhas = rows.map((r) => {
       const st = statusVenc(r.vencimento);
       return `<tr>
-        <td>${UI().dataCurta(r.vencimento + 'T00:00:00')}</td>
-        <td class="${st.cls}">${st.txt}</td>
-        <td class="td-nome">${UI().esc(r.nome)}</td>
-        <td>#${r.numero != null ? r.numero : '—'}</td>
-        <td class="td-valor">${UI().money(r.valor)}</td>
+        <td data-label="Vencimento">${UI().dataCurta(r.vencimento + 'T00:00:00')}</td>
+        <td data-label="Situação" class="${st.cls}">${st.txt}</td>
+        <td data-label="${UI().esc(tipoNome)}" class="td-nome">${UI().esc(r.nome)}</td>
+        <td data-label="Origem">${r.label ? UI().esc(r.label) : '#' + (r.numero != null ? r.numero : '—')}</td>
+        <td data-label="Valor" class="td-valor">${UI().money(r.valor)}</td>
       </tr>`;
     }).join('');
     return `<section class="card bloco">
